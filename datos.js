@@ -9,10 +9,10 @@ window.DATOS =
   "curso": "Desarrollo de Emprendedores · Grupo 4 · CEP: Negociación",
   "tiempos": {
     "consigna": 60,
-    "preparacion": 180,
-    "negociacion": 420,
+    "preparacion": 240,
+    "negociacion": 600,
     "cierre": 60,
-    "debrief": 180
+    "debrief": 240
   },
   "contexto": {
     "titulo": "Café Volcán contrata a Órbita Studio",
@@ -23,7 +23,7 @@ window.DATOS =
     ],
     "reglas": [
       "La tabla de puntos es privada. No se muestra la pantalla ni se leen los puntos en voz alta. Sí se puede decir qué les importa y por qué.",
-      "Hay 7 minutos para negociar. Si no hay acuerdo cuando se acabe el tiempo, cada parte se queda con su plan B.",
+      "Hay 10 minutos para negociar. Si no hay acuerdo cuando se acabe el tiempo, cada parte se queda con su plan B.",
       "El trato se cierra cuando las dos partes dicen «trato hecho» y una de ellas registra el código en la web.",
       "Gana la sala que crea más valor para las dos partes. Un trato que deja a una parte por debajo de su plan B no cuenta."
     ]

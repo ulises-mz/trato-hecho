@@ -622,3 +622,13 @@ td.max { font-weight: 800; color: var(--menta-2); }
 .espera-linea .reloj-arena { width: 34px; height: 34px; border: 3px solid var(--borde); border-radius: 50%; border-top-color: var(--oro); animation: girar 1.2s linear infinite; flex: 0 0 auto; }
 .espera-linea p { font-weight: 600; color: var(--tinta-2); }
 #arranque .ficha-identidad { align-items: flex-end; text-align: right; }
+/* ---------- hub de equipos ---------- */
+.equipos-hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 10px; }
+.equipo-slot { background: var(--panel); border: 2px solid var(--borde); border-radius: var(--radio); padding: 12px; display: grid; gap: 10px; box-shadow: var(--sombra-chica); align-content: start; }
+.equipo-slot.vacio { border-style: dashed; box-shadow: none; background: var(--panel-2); }
+.equipo-slot.mio { box-shadow: 0 0 0 4px var(--oro), var(--sombra-dura); }
+.equipo-slot.lleno { opacity: .85; }
+.equipo-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.equipo-cab b { font-family: var(--display); font-size: 1.1rem; letter-spacing: .02em; }
+.asientos-equipo { display: grid; gap: 8px; }
+.asiento.tercero .nombre { font-size: .78rem; }

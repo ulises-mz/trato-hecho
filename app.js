@@ -20,7 +20,7 @@
       ["tap", "Marque en la mesa cada propuesta que se diga, para ver cuánto vale para ustedes."],
       ["thermometer", "Vigile el termómetro: nada por debajo del plan B."],
       ["note", "Guarde las ofertas en el registro y anote qué le importa al otro lado."],
-      ["chat", "Avísele al vocero por chat privado de Zoom qué conviene pedir."] ] },
+      ["chat", "Avísele al vocero por chat privado qué conviene pedir."] ] },
     ambos: { nombre: "Los dos", corto: "habla y lleva la cuenta", icono: "users", titulo: "Usted hace de vocero y analista", tareas: [
       ["speak", "Abra con la posición inicial y pregunte para qué necesita el otro lado lo que pide."],
       ["tap", "Marque en la mesa cada propuesta y vigile el termómetro contra el plan B."],
@@ -30,11 +30,11 @@
   const PRESETS_STAFF = ["Preguntaron para qué", "Ofrecieron un cambio", "Solo hablan de precio", "Alguien mostró su tabla", "Se trabaron", "Casi cierran"];
   /* El laboratorio: la negociación avanza por rondas con una consigna cada una, y el equipo
      va cumpliendo misiones. Las rondas salen del reloj; las misiones, de lo que se registra. */
-  const RONDAS = [
-    { hasta: 120, nombre: "Abrir", tono: "calma", pista: "Cada vocero dice su posición inicial y hace la primera pregunta: ¿para qué lo necesitan así?" },
-    { hasta: 240, nombre: "Descubrir", tono: "calma", pista: "Pregunten qué le importa más al otro lado y por qué. Anoten lo que descubran." },
-    { hasta: 360, nombre: "Intercambiar", tono: "neutro", pista: "Cambien lo que les cuesta poco por lo que les importa. Guarden cada oferta que se diga." },
-    { hasta: 420, nombre: "Cerrar", tono: "presion", pista: "Último tramo: trato hecho si supera su plan B, o sin acuerdo con la última propuesta." }
+  const RONDAS = [   // cuatro rondas, en cuartos del tiempo de negociación
+    { hasta: D.tiempos.negociacion * 0.25, nombre: "Abrir", tono: "calma", pista: "Cada vocero dice su posición inicial y hace la primera pregunta: ¿para qué lo necesitan así?" },
+    { hasta: D.tiempos.negociacion * 0.5, nombre: "Descubrir", tono: "calma", pista: "Pregunten qué le importa más al otro lado y por qué. Anoten lo que descubran." },
+    { hasta: D.tiempos.negociacion * 0.75, nombre: "Intercambiar", tono: "neutro", pista: "Cambien lo que les cuesta poco por lo que les importa. Guarden cada oferta que se diga." },
+    { hasta: D.tiempos.negociacion, nombre: "Cerrar", tono: "presion", pista: "Último tramo: trato hecho si supera su plan B, o sin acuerdo con la última propuesta." }
   ];
   const MISIONES = [
     { id: "preparar", titulo: "Prepararse", pista: "Llenen al menos dos respuestas de la hoja de preparación, en la etapa Prepararse.", listo: () => Object.values(leerS("prep." + estado.lado, {})).filter(v => v && v.trim()).length >= 2 },
@@ -138,6 +138,7 @@
     lado: leerS("lado", null),
     nombre: leerS("nombre", ""),
     rol: leerS("rol", "ambos"),
+    equipo: leerS("equipo", null),
     entradoPlataforma: leerS("entradoPlataforma", null),
     entrado: leerS("entrado", null),
     trato: leerS("trato", {}),
@@ -163,6 +164,10 @@
   const tieneClave = () => !C.claveStaff || leer("staff", null) === String(C.claveStaff);
   const enVivo = () => vivo.conexion.modo !== "nada";
   const dentro = () => !!(estado.nombre && estado.sala && estado.lado);
+  const videollamada = () => C.videollamada || "Teams";
+  const juego = () => (vivo.config && vivo.config.juego) || null;
+  const juegoIniciado = () => !!(juego() && juego().iniciado);
+  const salasActivas = () => (juego() && juego().salas) || C.salas || 6;
 
   /* ---------- puntuación ---------- */
   const PLAN_B = { agencia: D.lados.agencia.planB.puntos, cliente: D.lados.cliente.planB.puntos };
@@ -343,7 +348,7 @@
   const TRANSICIONES = {
     consigna: ["¡Empezamos!", "Lean su ficha mientras el administrador da la consigna.", "menta"],
     preparacion: ["¡A prepararse!", "Lean su ficha, miren su plan B y preparen la apertura.", "menta"],
-    negociacion: ["¡A negociar!", "Siete minutos. Marquen lo que se diga y pregunten para qué.", ""],
+    negociacion: ["¡A negociar!", minutos(D.tiempos.negociacion) + "utos. Marquen lo que se diga y pregunten para qué.", ""],
     cierre: ["Último minuto", "Cierren el trato o registren «sin acuerdo» con la última propuesta.", "lava"],
     debrief: ["Se acabó", "Esperen la revelación del administrador para ver su resultado.", "menta"],
     fin: ["Se acabó el tiempo", "Registren el cierre: trato hecho o sin acuerdo.", "lava"]
@@ -402,7 +407,7 @@
      salas/N/gente/<id> (quién está sentado en cada sala). */
   function anunciar() {
     if (!estado.nombre || VISTAS_FACILITADOR.includes(rutaActual)) return;   // el facilitador no ocupa asiento ni cuenta como jugador
-    Sync.escribir("jugadores/" + idPestana, { nombre: estado.nombre, sala: estado.sala || null, lado: estado.lado || null, rol: estado.rol, etapa: rutaActual, entrado: estado.entradoPlataforma || Date.now(), actualizado: Date.now() });
+    Sync.escribir("jugadores/" + idPestana, { nombre: estado.nombre, equipo: estado.equipo || null, sala: estado.sala || null, lado: estado.lado || null, rol: estado.rol, etapa: rutaActual, entrado: estado.entradoPlataforma || Date.now(), actualizado: Date.now() });
     if (estado.sala && estado.lado) Sync.escribir("salas/" + estado.sala + "/gente/" + idPestana, { nombre: estado.nombre, lado: estado.lado, rol: estado.rol, entrado: estado.entrado || Date.now(), actualizado: Date.now() });
     limpiarAsientos();
   }
@@ -431,7 +436,7 @@
   }
   function lobbyHTML() {
     const numeros = new Set(Object.keys(vivo.salas || {}).map(Number).filter(n => n > 0));
-    for (let i = 1; i <= (C.salas || 6); i++) numeros.add(i);
+    for (let i = 1; i <= salasActivas(); i++) numeros.add(i);
     const lista = [...numeros].sort((a, b) => a - b);
     const aviso = enVivo() ? "" : `<p class="nota-pie">Sin tablero en vivo no se ve quién más está en cada sala; la elección funciona igual.</p>`;
     return aviso + `<div class="lobby">${lista.map(n => {
@@ -441,7 +446,8 @@
   <div class="lados-lobby">${LADOS.map(l => `<button type="button" class="lado-col ${l}" data-elegir-sala="${n}" data-elegir-lado="${l}" aria-pressed="${seleccion.sala === n && seleccion.lado === l}"><span class="lado-col-cab acento-${l}">${esc(D.lados[l].rol)} · ${esc(D.lados[l].nombre)}</span>${asientosHTML(n, l, 2)}</button>`).join("")}</div>
 </div>`; }).join("")}</div>`;
   }
-  function pintarLobby() { const z = document.getElementById("lobby"); if (z) z.innerHTML = lobbyHTML(); actualizarBotonEntrar(); }
+  function pintarLobby() { const z = document.getElementById("lobby"); if (z) z.innerHTML = lobbyHTML(); actualizarBotonEntrar(); pintarHub(); }
+  function pintarHub() { const z = document.getElementById("hub-equipos"); if (z) { const h = hubHTML(false); if (z.innerHTML !== h) z.innerHTML = h; } }
   function actualizarBotonEntrar() {
     const b = document.getElementById("btn-entrar"); if (!b) return;
     b.disabled = !(estado.nombre && seleccion.sala && seleccion.lado);
@@ -477,40 +483,101 @@
     const a = remota || local || {};
     return { temas: a.temas || {}, notas: Array.isArray(a.notas) ? a.notas : Object.values(a.notas || {}), actualizado: a.actualizado || 0 };
   }
-  function jugadoresHTML() {
-    if (!enVivo()) return "";
-    const j = jugadoresActivos(), sinSala = j.filter(x => !x.sala);
-    const porSala = {}; j.filter(x => x.sala).forEach(x => { porSala[x.sala] = (porSala[x.sala] || 0) + 1; });
-    const resumenSalas = Object.keys(porSala).sort((a, b) => a - b).map(n => `Sala ${n}: ${porSala[n]}`).join(" · ");
-    return `<div class="vivo-resumen"><span class="conectados" id="conectados-admin">${conectadosHTML()}</span>${resumenSalas ? `<span>${esc(resumenSalas)}</span>` : ""}</div>
-<div class="jugadores">${j.map(x => `<span class="jugador ${x.sala ? "" : "sin-sala"}"><span class="avatar ${x.lado || ""}">${esc(iniciales(x.nombre))}</span>${esc(x.nombre)}<small>${x.sala ? `S${x.sala} · ${esc(D.lados[x.lado].rol)} · ${esc(ROL_CORTO[x.rol] || "V·A")}` : "sin sala"}${x.asignacion && (!x.sala || x.asignacion.sala !== x.sala) ? ` → S${x.asignacion.sala}` : ""}</small></span>`).join("") || `<span class="nota-pie">Nadie ha entrado todavía.</span>`}</div>
-<div class="botones" style="margin-top:12px"><label class="campo" for="rep-salas" style="display:inline-grid;grid-template-columns:auto 80px;align-items:center;gap:8px">Repartir en<input type="number" id="rep-salas" min="1" max="30" value="${C.salas || 6}"></label><span class="nota-pie">salas</span><button type="button" class="boton chico oro" id="btn-repartir" ${sinSala.length ? "" : "disabled"}>Repartir a ${sinSala.length} sin sala</button><button type="button" class="boton chico fantasma" id="btn-repartir-todos" ${j.length ? "" : "disabled"}>Volver a repartir a todos</button></div>
-<p class="nota-pie">El reparto le aparece a cada persona en su pantalla de Entrar, con un botón para sentarse. Dos por lado por sala; si sobran, van de analistas extra. Se puede cambiar a mano.</p>`;
+  /* ---------- equipos ---------- */
+  const equiposDe = lista => { const m = {}; lista.forEach(j => { if (j.equipo > 0) (m[j.equipo] = m[j.equipo] || []).push(j); }); return m; };
+  const cupoEquipos = () => Math.max(2 * (C.salas || 6), Math.ceil(jugadoresActivos().length / 2));
+  const MAX_EQUIPO = 3;
+  function hubHTML(soloLectura) {
+    const activos = jugadoresActivos(), equipos = equiposDe(activos), cupo = cupoEquipos();
+    const sueltos = activos.filter(j => !(j.equipo > 0));
+    const armados = Object.keys(equipos).length;
+    const tarjetas = [];
+    for (let n = 1; n <= cupo; n++) {
+      const m = (equipos[n] || []).slice().sort((a, b) => (a.entrado || 0) - (b.entrado || 0));
+      const mio = estado.equipo === n;
+      const asientos = m.map(x => `<div class="asiento ${x.id === idPestana ? "yo" : ""}"><span class="avatar">${esc(iniciales(x.nombre))}</span><span class="nombre">${esc(x.nombre)}</span></div>`);
+      for (let k = m.length; k < 2; k++) asientos.push(`<div class="asiento vacio"><span class="avatar"></span><span class="nombre">libre</span></div>`);
+      if (m.length === 2 && !soloLectura && !mio) asientos.push(`<div class="asiento vacio tercero"><span class="avatar"></span><span class="nombre">tercero, solo si sobran</span></div>`);
+      const asig = vivo.config && vivo.config.equipos && vivo.config.equipos[n];
+      let accion = "";
+      if (!soloLectura && !juegoIniciado()) accion = mio ? `<button type="button" class="boton chico fantasma" data-salir-equipo="${n}">Salir del equipo</button>` : m.length < MAX_EQUIPO ? `<button type="button" class="boton chico ${m.length ? "oro" : ""}" data-unirme-equipo="${n}">${m.length ? "Unirme" : "Abrir este equipo"}</button>` : `<span class="nota-pie">completo</span>`;
+      tarjetas.push(`<div class="equipo-slot ${mio ? "mio" : ""} ${m.length ? "" : "vacio"} ${m.length >= MAX_EQUIPO ? "lleno" : ""}" data-equipo="${n}">
+  <div class="equipo-cab"><b>Equipo ${n}</b>${asig ? `<span class="cinta ${asig.lado}" style="font-size:.75rem">Sala ${asig.sala} · ${esc(D.lados[asig.lado].rol)}</span>` : `<span class="cinta gris" style="font-size:.75rem">${m.length ? m.length + (m.length === 1 ? " persona" : " personas") : "libre"}</span>`}</div>
+  <div class="asientos-equipo">${asientos.join("")}</div>
+  ${accion ? `<div class="botones">${accion}</div>` : ""}
+</div>`);
+    }
+    return `<div class="vivo-resumen"><span class="conectados">${conectadosHTML()}</span><span>${armados} ${armados === 1 ? "equipo armado" : "equipos armados"} · ${sueltos.length} sin equipo</span></div><div class="equipos-hub">${tarjetas.join("")}</div>`;
   }
-  /* Reparte a las personas conectadas en N salas: primero un vocero por lado en cada sala, luego
-     los analistas, luego los que sobran. Escribe la asignación en jugadores/<id>/asignacion. */
-  function repartir(nSalas, todos) {
-    const activos = jugadoresActivos();
-    const lista = activos.filter(j => todos || !j.sala);
-    if (!lista.length) return 0;
-    const ocupados = {}; if (!todos) activos.filter(j => j.sala).forEach(j => { const k = j.sala + "/" + j.lado; ocupados[k] = (ocupados[k] || 0) + 1; });
-    const asientos = [];
-    for (let k = 0; k < 2; k++) for (let s = 1; s <= nSalas; s++) for (const l of LADOS) asientos.push({ sala: s, lado: l, k });
-    const libres = asientos.filter(a => (ocupados[a.sala + "/" + a.lado] || 0) <= a.k);
-    lista.forEach((j, i) => {
-      let a, rol;
-      if (i < libres.length) { a = libres[i]; rol = a.k === 0 ? "vocero" : "analista"; }
-      else { const e = i - libres.length; a = { sala: (e % nSalas) + 1, lado: LADOS[Math.floor(e / nSalas) % 2] }; rol = "analista"; }
-      Sync.fijar("jugadores/" + j.id + "/asignacion", { sala: a.sala, lado: a.lado, rol, ts: Date.now() });
+  /* Acomoda a quienes no tienen equipo: primero completa parejas, luego abre equipos nuevos de dos,
+     y si sobra una persona va de tercera. Con el juego iniciado, los que entren tarde van de terceros a
+     equipos que ya tienen sala. Devuelve cuántos acomodó. */
+  function acomodar() {
+    const activos = jugadoresActivos(), equipos = equiposDe(activos), cupo = cupoEquipos();
+    const sueltos = activos.filter(j => !(j.equipo > 0)).sort((a, b) => (a.entrado || 0) - (b.entrado || 0));
+    if (!sueltos.length) return 0;
+    const poner = (j, n) => { equipos[n] = equipos[n] || []; equipos[n].push(j); Sync.fijar("jugadores/" + j.id + "/equipo", n); const asig = vivo.config && vivo.config.equipos && vivo.config.equipos[n]; if (juegoIniciado() && asig) Sync.fijar("jugadores/" + j.id + "/asignacion", { sala: asig.sala, lado: asig.lado, rol: "analista", equipo: n, ts: Date.now() }); };
+    let k = 0;
+    const conUno = () => Object.keys(equipos).map(Number).filter(n => equipos[n].length === 1).sort((a, b) => a - b);
+    // completar parejas
+    for (const n of conUno()) { if (k >= sueltos.length) break; poner(sueltos[k++], n); }
+    if (!juegoIniciado()) {
+      // equipos nuevos de dos
+      let n = 1;
+      while (k + 1 < sueltos.length) { while (equipos[n] && equipos[n].length) n++; if (n > cupo + 20) break; poner(sueltos[k++], n); poner(sueltos[k++], n); }
+    }
+    // los que sobran, de terceros al equipo más chico con cupo
+    while (k < sueltos.length) {
+      const destino = Object.keys(equipos).map(Number).filter(n => equipos[n].length < MAX_EQUIPO && (!juegoIniciado() || (vivo.config.equipos || {})[n])).sort((a, b) => equipos[a].length - equipos[b].length || a - b)[0];
+      if (!destino) break;
+      poner(sueltos[k++], destino);
+    }
+    return k;
+  }
+  /* Inicia el juego: acomoda a los sueltos, resuelve un número impar de equipos repartiendo el último de
+     terceros, asigna sala y lado por pares de equipos y arranca el reloj del administrador. */
+  function iniciarJuego() {
+    acomodar();
+    const activos = jugadoresActivos(), equipos = equiposDe(activos);
+    // los recién acomodados aún no llegaron por el canal: aplicar lo mismo en memoria
+    let numeros = Object.keys(equipos).map(Number).sort((a, b) => a - b).filter(n => equipos[n].length);
+    if (numeros.length < 2) { avisar("Hacen falta al menos dos equipos para empezar."); return false; }
+    if (numeros.length % 2 === 1) {
+      const ultimo = numeros[numeros.length - 1], miembros = equipos[ultimo]; numeros = numeros.slice(0, -1);
+      for (const m of miembros) {
+        const destino = numeros.filter(n => equipos[n].length < MAX_EQUIPO).sort((a, b) => equipos[a].length - equipos[b].length || a - b)[0];
+        if (!destino) { avisar("Queda un equipo sin rival y no hay espacio de terceros. Movelo a mano."); return false; }
+        equipos[destino].push(m); Sync.fijar("jugadores/" + m.id + "/equipo", destino);
+      }
+      delete equipos[ultimo];
+    }
+    const ts = Date.now(), salas = numeros.length / 2;
+    numeros.forEach((n, i) => {
+      const sala = Math.floor(i / 2) + 1, lado = LADOS[i % 2];
+      Sync.fijar("config/equipos/" + n, { sala, lado, ts });
+      equipos[n].slice().sort((a, b) => (a.entrado || 0) - (b.entrado || 0)).forEach((m, k) => Sync.fijar("jugadores/" + m.id + "/asignacion", { sala, lado, rol: k === 0 ? "vocero" : "analista", equipo: n, ts }));
     });
-    return lista.length;
+    Sync.fijar("config/juego", { iniciado: ts, salas });
+    if (!RELOJES.admin.inicio) RELOJES.admin.fijar(ts);
+    return true;
+  }
+  function equiposAdminHTML() {
+    if (!enVivo()) return `<div class="panel suave">Sin tablero en vivo no se ve quién está conectado ni se pueden armar equipos.</div>`;
+    const activos = jugadoresActivos(), equipos = equiposDe(activos), cfg = (vivo.config && vivo.config.equipos) || {};
+    let porSala = "";
+    if (juegoIniciado()) {
+      const salas = {};
+      Object.keys(cfg).forEach(n => { const a = cfg[n]; salas[a.sala] = salas[a.sala] || {}; salas[a.sala][a.lado] = { equipo: n, gente: (equipos[n] || []).map(x => x.nombre) }; });
+      porSala = `<h3 style="margin-top:14px">Quién va a cada sala de ${esc(videollamada())}</h3><p class="nota-pie">Esta es la lista para mover a cada persona a su sala en la videollamada.</p><div class="vivo-grid" style="margin-top:8px">${Object.keys(salas).sort((a, b) => a - b).map(n => `<div class="sala-card"><div class="sala-cab"><b>Sala ${n}</b></div>${LADOS.map(l => { const x = salas[n][l]; return `<div class="lado-linea"><span class="quien acento-${l}">${esc(D.lados[l].rol)}</span><span class="nombres">${x ? esc(x.gente.join(", ")) + ` <small>equipo ${esc(x.equipo)}</small>` : "<span class='nota-pie'>sin equipo</span>"}</span></div>`; }).join("")}</div>`).join("")}</div>`;
+    }
+    return hubHTML(true) + porSala;
   }
   function vivoHTML() {
     const con = vivo.conexion;
-    if (con.modo === "nada") return `<div class="panel suave"><b>Sin tablero en vivo.</b> Los códigos llegan por el chat de Zoom. Para ver las salas en tiempo real, sirva la web con su servidor (<span class="mono">servidor/index.js</span>, Docker o Coolify) o configure Firebase en <span class="mono">config.js</span>; con <span class="mono">?sync=local</span> se ensaya en esta computadora.</div>`;
+    if (con.modo === "nada") return `<div class="panel suave"><b>Sin tablero en vivo.</b> Los códigos llegan por el chat de la videollamada. Para ver las salas en tiempo real, sirva la web con su servidor (<span class="mono">servidor/index.js</span>, Docker o Coolify) o configure Firebase en <span class="mono">config.js</span>; con <span class="mono">?sync=local</span> se ensaya en esta computadora.</div>`;
     const salas = vivo.salas || {};
     const numeros = new Set(Object.keys(salas).map(Number).filter(n => n > 0));
-    for (let i = 1; i <= (C.salas || 0); i++) numeros.add(i);
+    for (let i = 1; i <= (juegoIniciado() ? salasActivas() : (C.salas || 0)); i++) numeros.add(i);
     const lista = [...numeros].sort((a, b) => a - b);
     const conteo = { cerrado: 0, coinciden: 0, mesa: 0, ficha: 0, vacia: 0 };
     const tarjetas = lista.map(n => {
@@ -527,7 +594,7 @@
     }).join("");
     return `<div class="vivo-resumen"><span class="estado ${con.conectado ? "ok" : "mal"}">${esc(con.mensaje)}</span><span>${lista.length} salas · ${conteo.cerrado} cerradas · ${conteo.coinciden + conteo.mesa} negociando · ${conteo.ficha} preparándose · ${conteo.vacia} sin entrar</span></div><div class="vivo-grid">${tarjetas}</div>`;
   }
-  function pintarVivo() { const z = document.getElementById("vivo"); if (z) z.innerHTML = vivoHTML(); const j = document.getElementById("jugadores"); if (j) j.innerHTML = jugadoresHTML(); const a = document.getElementById("arranque"); if (a) { const h = arranqueHTML(); if (a.innerHTML !== h) a.innerHTML = h; } }
+  function pintarVivo() { const z = document.getElementById("vivo"); if (z) z.innerHTML = vivoHTML(); const j = document.getElementById("jugadores"); if (j) { const h = equiposAdminHTML(); if (j.innerHTML !== h) j.innerHTML = h; } const a = document.getElementById("arranque"); if (a) { const h = arranqueHTML(); if (a.innerHTML !== h) a.innerHTML = h; } }
   function codigosEnVivo(incluirAbiertas) {
     const salas = vivo.salas || {}, codigos = [], sinCodigo = [], abiertas = [];
     Object.keys(salas).map(Number).filter(n => n > 0).sort((a, b) => a - b).forEach(n => {
@@ -547,7 +614,7 @@
   /* ---------- textos compartidos (guion, admin y staff) ---------- */
   function mensajes() {
     return {
-      ingreso: `Entren aquí, escriban su nombre y siéntense en su sala, del lado que les tocó: ${enlaceWeb()} . Si no tienen el reparto a mano: los dos primeros nombres de la lista de la sala son la AGENCIA y los otros el CLIENTE; en cada pareja, uno es vocero y el otro analista. La tabla de puntos es privada: no se comparte pantalla.`,
+      ingreso: `Entren aquí, escriban su nombre y armen su equipo de dos: ${enlaceWeb()} . Cuando estén todos, el juego les dice a cada equipo su lado y la sala de ${videollamada()} a la que entrar. La tabla de puntos es privada: no se comparte pantalla.`,
       prep30: "Quedan 30 segundos de preparación. Al terminar, la web los pasa a la mesa.",
       faltan3: "Quedan 3 minutos. Si no cierran, cada parte se queda con su plan B.",
       ultimo: "Último minuto. Cierren el trato en la etapa Cerrar, o marquen «sin acuerdo» con la última propuesta que hubo.",
@@ -558,14 +625,14 @@
     const t = D.tiempos, M = mensajes();
     const tPrep = t.consigna, tNeg = tPrep + t.preparacion, tCierre = tNeg + t.negociacion, tRes = tCierre + t.cierre, tFin = tRes + t.debrief;
     return [
-      { en: 0, titulo: "Consigna", que: "Compartir la pantalla de Entrar. Pegar el mensaje de ingreso en el chat; ver cuántos entran y repartir las salas desde este panel. Cuando estén todos sentados, «Abrir la preparación para todos» arranca este reloj. Leer el caso en dos frases y las cuatro reglas.", msg: M.ingreso },
-      { en: tPrep - 15, titulo: "Abrir las salas", que: "Zoom: Salas para grupos pequeños, Abrir todas las salas. Dejar de compartir pantalla. El staff entra a su sala y elige su número en la vista Staff." },
+      { en: 0, titulo: "Consigna", que: "Compartir la pantalla de Entrar. Pegar el mensaje de ingreso en el chat; ver cómo se arman los equipos desde este panel y acomodar a los que falten. Con todos en equipos, «Iniciar juego» reparte lados y salas y arranca este reloj. Leer el caso en dos frases y las cuatro reglas.", msg: M.ingreso },
+      { en: tPrep - 15, titulo: "Abrir las salas", que: videollamada() + ": crear las salas para grupos pequeños y mover a cada persona a su sala según la lista «Quién va a cada sala» de este panel. Dejar de compartir pantalla. El staff entra a su sala y elige su número en la vista Staff." },
       { en: tPrep, titulo: "Preparación", que: "La web pasa a cada pareja a Prepararse: leen su ficha por pasos y llenan la hoja. El staff resuelve dudas de reglas, nunca de estrategia. En el tablero se ve quién no ha entrado." },
       { en: tNeg - 30, titulo: "Aviso: 30 segundos", que: "Transmitir a todas las salas.", msg: M.prep30 },
       { en: tNeg, titulo: "Negociación", que: "La web abre la mesa en todas las salas. El staff lleva el acta de su sala: marca lo acordado y anota qué pasa. Vigilar que nadie muestre la tabla de puntos." },
       { en: tCierre - 180, titulo: "Aviso: 3 minutos", que: "Transmitir a todas las salas.", msg: M.faltan3 },
       { en: tCierre - 60, titulo: "Aviso: último minuto", que: "Transmitir a todas las salas.", msg: M.ultimo },
-      { en: tCierre, titulo: "Cerrar las salas", que: "Zoom: Cerrar todas las salas (cuenta regresiva de 60 s). La web pasa a los equipos a Cerrar. El staff registra el cierre de su sala desde el acta. Transmitir el mensaje de cierre.", msg: M.cierre },
+      { en: tCierre, titulo: "Cerrar las salas", que: videollamada() + ": cerrar las salas (cuenta regresiva de 60 s). La web pasa a los equipos a Cerrar. El staff registra el cierre de su sala desde el acta. Transmitir el mensaje de cierre.", msg: M.cierre },
       { en: tRes, titulo: "Resultados", que: "Compartir la pestaña Resultados: ya tiene el ranking con los cierres que registró cada sala; las que no cerraron cuentan como sin acuerdo. Nombrar la sala ganadora, Revelar los intereses (cada equipo ve su resultado en su pantalla) y lanzar las tres preguntas." },
       { en: tFin, titulo: "Fin", que: "Sigue la presentación de los seis puntos de la CEP." }
     ];
@@ -705,9 +772,9 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     if (!estado.nombre) {
       return `
 <section class="pantalla intro">
-  <div class="intro-logo">${logoSVG}<div class="titulo-juego">Trato Hecho</div><p class="intro-lema">${esc(D.lema)}. Dos contra dos, siete minutos, un contrato. Gana la sala donde las dos partes salen mejor.</p></div>
+  <div class="intro-logo">${logoSVG}<div class="titulo-juego">Trato Hecho</div><p class="intro-lema">${esc(D.lema)}. Dos contra dos, ${minutos(t.negociacion)}utos, un contrato. Gana la sala donde las dos partes salen mejor.</p></div>
   <form class="intro-form" id="form-nombre" autocomplete="off">
-    <label class="campo" for="nombre">¿Cómo te llamás?<input type="text" id="nombre" name="nombre" autocomplete="name" maxlength="40" placeholder="Tu nombre, como aparece en Zoom" required></label>
+    <label class="campo" for="nombre">¿Cómo te llamás?<input type="text" id="nombre" name="nombre" autocomplete="name" maxlength="40" placeholder="Tu nombre, como aparece en ${esc(videollamada())}" required></label>
     <button type="submit" class="boton oro grande">Entrar al juego</button>
   </form>
   <span class="conectados" id="conectados" ${enVivo() ? "" : "hidden"}>${conectadosHTML()}</span>
@@ -715,22 +782,51 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
   ${fasesHTML}
 </section>${caso}`;
     }
-    const j = enVivo() ? (vivo.jugadores || {})[idPestana] : null;
-    const asig = j && j.asignacion && j.asignacion.sala && (j.asignacion.sala !== estado.sala || j.asignacion.lado !== estado.lado) ? j.asignacion : null;
     const yaDentro = estado.sala && estado.lado && leerS("sala", null);
-    return `
-<section class="pantalla">
+    const cabecera = `
   <div class="ficha-identidad">
     <span class="avatar ${estado.lado || ""}" style="width:64px;height:64px;font-size:1.3rem">${esc(iniciales(estado.nombre))}</span>
     <h1>Hola, ${esc(estado.nombre.split(/\s+/)[0])}</h1>
     <span class="conectados" id="conectados" ${enVivo() ? "" : "hidden"}>${conectadosHTML()}</span>
     <div class="botones"><button type="button" class="boton chico fantasma" id="btn-cambiar-nombre">Cambiar mi nombre</button><button type="button" class="boton chico fantasma" data-tutorial>¿Cómo se juega?</button></div>
+  </div>`;
+    if (enVivo()) {
+      if (yaDentro) {
+        return `
+<section class="pantalla">
+  ${cabecera}
+  <div class="panel menta"><span class="ojo">Tu lugar en el juego</span><h2>Sala ${estado.sala} · ${esc(D.lados[estado.lado].rol)} · ${esc(D.lados[estado.lado].nombre)}</h2>
+    <p style="margin-top:6px"><b>Entrá a la sala ${estado.sala} en ${esc(videollamada())}.</b> Ahí van a estar su equipo y el equipo rival. Tu rol en el equipo: ${esc(ROLES[estado.rol].nombre)}.</p>
+    ${bloqueada("preparar") ? `<div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>El administrador abre la preparación en un momento. La pantalla cambia sola.</p></div>` : `<div class="botones" style="margin-top:12px"><a class="boton oro grande" href="#preparar">Ir a prepararme</a></div>`}
   </div>
-  ${asig ? `<div class="asignacion"><span class="ojo">El administrador te asignó un lugar</span><b class="grande">Sala ${asig.sala} · ${esc(D.lados[asig.lado].rol)} · ${esc((ROLES[asig.rol] || ROLES.ambos).nombre)}</b><div class="botones"><button type="button" class="boton oro grande" id="btn-asignacion" data-sala="${asig.sala}" data-lado="${asig.lado}" data-rol="${esc(asig.rol || "ambos")}">Sentarme ahí</button><span class="nota-pie">Si en tu sala de Zoom te tocó otra cosa, elegí abajo a mano.</span></div></div>` : ""}
-  ${yaDentro ? `<div class="panel menta"><span class="ojo">Ya estás sentado</span><h2>Sala ${estado.sala} · ${esc(D.lados[estado.lado].rol)} · ${esc(ROLES[estado.rol].nombre)}</h2>${bloqueada("preparar") ? `<div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>Esperá aquí: el administrador abre la preparación cuando todos hayan entrado. La pantalla cambia sola.</p></div><div class="botones"><button type="button" class="boton fantasma chico" id="btn-salir">Cambiar de sala, lado o rol</button></div>` : `<div class="botones"><a class="boton oro grande" href="#preparar">Ir a prepararme</a><button type="button" class="boton fantasma" id="btn-salir">Cambiar de sala, lado o rol</button></div>`}</div>` : ""}
+  ${presenciaHTML()}
+</section>${caso}`;
+      }
+      if (juegoIniciado()) {
+        return `
+<section class="pantalla">
+  ${cabecera}
+  <div class="panel oro"><span class="ojo">El juego ya empezó</span><h2>Esperá un momento</h2><p>El administrador te va a ubicar en un equipo que ya tiene sala. Cuando lo haga, esta pantalla te dice a qué sala de ${esc(videollamada())} entrar.</p><div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>Esperando al administrador…</p></div></div>
+</section>${caso}`;
+      }
+      return `
+<section class="pantalla">
+  ${cabecera}
+  <div class="panel" id="hub">
+    <h2>Armá tu equipo</h2>
+    <p>Equipos de <b>dos</b>. Si la cuenta no da, alguno será de tres. Tocá «Unirme» en un equipo con alguien, o abrí uno nuevo y esperá a que alguien se una. Cuando estén todos, el administrador inicia el juego y a cada equipo le toca un lado y una sala de ${esc(videollamada())}.</p>
+    <div id="hub-equipos" style="margin-top:12px">${hubHTML(false)}</div>
+  </div>
+</section>${caso}`;
+    }
+    // sin tablero en vivo: elección manual de sala y lado
+    return `
+<section class="pantalla">
+  ${cabecera}
+  ${yaDentro ? `<div class="panel menta"><span class="ojo">Ya estás sentado</span><h2>Sala ${estado.sala} · ${esc(D.lados[estado.lado].rol)} · ${esc(ROLES[estado.rol].nombre)}</h2><div class="botones"><a class="boton oro grande" href="#preparar">Ir a prepararme</a><button type="button" class="boton fantasma" id="btn-salir">Cambiar de sala, lado o rol</button></div></div>` : ""}
   <div class="panel" id="entrar">
     <h2>${yaDentro ? "Cambiar de lugar" : "Sentate en tu sala"}</h2>
-    <p>Tocá el lado que te tocó en tu sala de Zoom y elegí tu rol en la pareja. Ves llegar a los demás en tiempo real.</p>
+    <p>Tocá el lado que te tocó en tu sala de ${esc(videollamada())} y elegí tu rol en la pareja.</p>
     <div class="campo" style="margin-top:12px"><span>Mi rol en la pareja</span>
       <div class="roles">${Object.entries(ROLES).map(([k, r]) => `<button type="button" class="rol-boton" data-rol="${k}" aria-pressed="${estado.rol === k}"><b>${ico(r.icono)} ${esc(r.nombre)}</b><span>${esc(k === "ambos" ? "estoy solo en mi lado" : r.corto)}</span></button>`).join("")}</div>
     </div>
@@ -771,7 +867,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
 <section class="pantalla">
   <div class="pantalla-cab">
     <div class="textos">
-      <span class="cinta ${l}">Sala ${estado.sala} · ficha privada · ${ico(R.icono)} ${esc(R.nombre)}</span>
+      <span class="cinta ${l}">Sala ${estado.sala} en ${esc(videollamada())} · ficha privada · ${ico(R.icono)} ${esc(R.nombre)}</span>
       <h1 class="titulo-lado ${l}">Ustedes son <em>${esc(L.nombre)}</em></h1>
       <p class="entrada">${esc(L.rol)}. Solo para su lado: no la compartan ni la lean en voz alta. Recorran los seis pasos; la mesa se abre cuando termine la preparación.</p>
     </div>
@@ -1148,10 +1244,10 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
 
   /* ---------- admin, staff y guion ---------- */
   function arranqueHTML() {
-    const fa = RELOJES.admin.fase(), j = enVivo() ? jugadoresActivos() : [], sentados = j.filter(x => x.sala).length;
-    const conteo = enVivo() ? `<span class="conectados"><span class="punto" aria-hidden="true"></span>${j.length} ${j.length === 1 ? "persona conectada" : "personas conectadas"} · ${sentados} ${sentados === 1 ? "sentada" : "sentadas"} · ${j.length - sentados} sin sala</span>` : `<span class="nota-pie">Sin tablero en vivo no se ve quién está conectado.</span>`;
-    if (fa) return `<div class="cabecera"><div><span class="ojo">En marcha</span><h2>${esc(fa.nombre)} · ${mmss(fa.restante)}</h2><p class="nota-pie">Las pantallas de los equipos van con este reloj. «Siguiente fase» salta; «Reiniciar» lo detiene.</p></div>${conteo}</div>`;
-    return `<div class="cabecera"><div><span class="ojo">Todos sentados, esperando</span><h2>Abrir la preparación</h2><p class="nota-pie">Los equipos se quedan en Entrar hasta que pulsés este botón. Arranca el reloj completo: consigna, preparación, negociación, cierre y resultados.</p></div><div class="ficha-identidad">${conteo}<button type="button" class="boton oro grande" id="btn-arrancar">Abrir la preparación para todos</button></div></div>`;
+    const fa = RELOJES.admin.fase(), j = enVivo() ? jugadoresActivos() : [], equipos = equiposDe(j), armados = Object.keys(equipos).length, sueltos = j.filter(x => !(x.equipo > 0)).length;
+    const conteo = enVivo() ? `<span class="conectados"><span class="punto" aria-hidden="true"></span>${j.length} ${j.length === 1 ? "persona conectada" : "personas conectadas"} · ${armados} ${armados === 1 ? "equipo" : "equipos"} · ${sueltos} sin equipo</span>` : `<span class="nota-pie">Sin tablero en vivo no se ve quién está conectado.</span>`;
+    if (juegoIniciado() || fa) return `<div class="cabecera"><div><span class="ojo">En marcha</span><h2>${fa ? esc(fa.nombre) + " · " + mmss(fa.restante) : "Juego iniciado"}</h2><p class="nota-pie">${salasActivas()} salas. Las pantallas de los equipos van con este reloj: «Siguiente fase» salta, «Reiniciar» lo detiene. Si alguien entra tarde, «Acomodar a los que faltan» lo mete de tercero en un equipo con sala.</p></div><div class="ficha-identidad">${conteo}${sueltos ? `<button type="button" class="boton chico oro" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}</div></div>`;
+    return `<div class="cabecera"><div><span class="ojo">Armando equipos</span><h2>Iniciar el juego</h2><p class="nota-pie">Cuando estén todos en equipos de dos (o tres), este botón le asigna a cada equipo un lado y una sala, se lo muestra en su pantalla con la sala de ${esc(videollamada())} a la que debe entrar, y arranca el reloj completo. Si queda un número impar de equipos, el último se reparte de terceros.</p></div><div class="ficha-identidad">${conteo}<div class="botones">${sueltos ? `<button type="button" class="boton fantasma" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}<button type="button" class="boton oro grande" id="btn-iniciar-juego" ${j.length >= 2 ? "" : "disabled"}>Iniciar juego</button></div></div></div>`;
   }
   function vistaAdmin() {
     const t = D.tiempos, total = FASES_ADMIN.reduce((s, f) => s + f.dur, 0);
@@ -1165,8 +1261,8 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   <div class="botones"><a class="boton fantasma" href="#entrar" target="_blank" rel="noopener">Entrar en otra pestaña, para compartir</a><a class="boton fantasma" href="#resultados" target="_blank" rel="noopener">Resultados en otra pestaña</a><a class="boton fantasma" href="#staff">Vista del staff</a><a class="boton fantasma" href="#guion">Guion completo</a></div>
 </section>
 <section class="seccion">
-  <div class="cabecera"><h2>Quién está conectado</h2></div>
-  <div id="jugadores">${jugadoresHTML() || `<div class="panel suave">Sin tablero en vivo no se ve quién está conectado.</div>`}</div>
+  <div class="cabecera"><h2>Equipos</h2></div>
+  <div id="jugadores">${equiposAdminHTML()}</div>
 </section>
 <section class="seccion">
   <div class="cabecera"><h2>Las salas, en vivo</h2><div class="botones"><button type="button" class="boton fantasma chico" id="btn-probar">Probar conexión</button><button type="button" class="boton lava chico" id="btn-reiniciar">Reiniciar la sesión</button></div></div>
@@ -1178,11 +1274,11 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   <div class="cues">${cuesHTML()}</div>
 </section>
 <section class="seccion dos">
-  <div class="panel"><h3>Zoom, en orden</h3><ol class="pasos">
-    <li>Antes de empezar: que el profe los haga co-anfitriones, o que sea él quien abra las salas.</li>
-    <li>Crear las salas de antemano con nombre «Sala 1» a «Sala ${C.salas || 6}» y activar «Permitir que los participantes elijan sala». Cuando todos hayan entrado a la web, repartir desde aquí: cada quien ve su sala, su lado y su rol en su pantalla, y entra a esa sala en Zoom. Opciones: mover a todos automáticamente; cerrar a los ${minutos(t.preparacion + t.negociacion)}; cuenta regresiva de ${t.cierre} s. Un integrante del staff en cada sala que se pueda.</li>
+  <div class="panel"><h3>${esc(videollamada())}, en orden</h3><ol class="pasos">
+    <li>Antes de empezar: que el profe haga coorganizadores al administrador y al staff, o que sea él quien maneje las salas.</li>
+    <li>Cuando todos estén en equipos, «Iniciar juego» reparte lados y salas; en «Quién va a cada sala» queda la lista de nombres por sala. Crear las salas para grupos pequeños con nombre «Sala 1» a «Sala N» y asignar a mano a cada persona según esa lista. Un integrante del staff en cada sala que se pueda.</li>
     <li>Compartir la ventana del navegador con la pantalla de Entrar, nunca la pantalla completa (esta pestaña se vería).</li>
-    <li>Los avisos van por «Transmitir mensaje a todas las salas», en el panel de salas.</li>
+    <li>Los avisos van por el anuncio a las salas (o por el chat de la reunión).</li>
     <li>Al cerrar las salas, Resultados ya tiene los cierres. Si una sala no registró el suyo, su staff lo hace desde el acta; el respaldo es pegar el código del chat. Al revelar, cada equipo ve su resultado.</li>
   </ol></div>
   <div class="panel suave"><h3>Cómo se lee un código</h3><ul class="lista">
@@ -1227,8 +1323,8 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
 </section>
 <section class="seccion dos">
   <div class="panel"><h3>Roles del grupo</h3><ul class="lista">
-    <li><b>Administrador.</b> Abre, lee las reglas, pega el enlace, reparte las salas desde el panel, abre y cierra las salas en Zoom, lleva el reloj y los avisos y maneja el tablero de resultados.</li>
-    <li><b>Staff, uno por sala.</b> Entra a su sala de Zoom con la vista Staff en el celular: marca en el acta lo que se va acordando, anota qué pasa (quién preguntó, quién ofreció un cambio) y registra el cierre. Resuelve dudas de reglas, nunca de estrategia.</li>
+    <li><b>Administrador.</b> Abre, lee las reglas, pega el enlace, inicia el juego cuando los equipos están armados, mueve a la gente a su sala en ${esc(videollamada())} con la lista del panel, lleva el reloj y los avisos y maneja el tablero de resultados.</li>
+    <li><b>Staff, uno por sala.</b> Entra a su sala de la videollamada con la vista Staff en el celular: marca en el acta lo que se va acordando, anota qué pasa (quién preguntó, quién ofreció un cambio) y registra el cierre. Resuelve dudas de reglas, nunca de estrategia.</li>
     <li><b>Revelación.</b> Lee el tablero en voz alta: la ganadora, quién se levantó bien, quién dejó un trato en la mesa, y los apuntes del staff que lo expliquen.</li>
     <li><b>Cierre.</b> Lanza las tres preguntas, conecta con la teoría y da paso a la presentación.</li>
   </ul></div>
@@ -1242,7 +1338,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   <h2>Antes de la clase</h2>
   <ul class="chequeo">
     <li>Pedirle al profe, que es el anfitrión, que haga co-anfitrión al administrador antes de empezar, o que sea él quien abra las salas.</li>
-    <li>Crear las salas de antemano con nombre «Sala 1» a «Sala ${C.salas || 6}» y activar «Permitir que los participantes elijan sala». El reparto se hace en vivo desde el panel Admin cuando todos hayan escrito su nombre; un integrante del staff en cada sala que se pueda. Opciones: mover a todos automáticamente, cerrar las salas a los ${minutos(t.preparacion + t.negociacion)} y cuenta regresiva de ${t.cierre} segundos.</li>
+    <li>Los equipos se arman en la web y el reparto de lados y salas lo hace «Iniciar juego» en el panel Admin; con la lista «Quién va a cada sala» se crean las salas en ${esc(videollamada())} y se mueve a cada persona. Un integrante del staff en cada sala que se pueda.</li>
     <li>Tener la web abierta en tres pestañas: Admin (privada), Entrar (para compartir) y Resultados (para el cierre). El staff abre Staff con la clave y elige su sala.</li>
     <li>Tener listo el mensaje de ingreso (abajo) y probar que el enlace abre en un celular.</li>
     <li>Compartir la ventana del navegador, no la pantalla completa.</li>
@@ -1253,7 +1349,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
 <section class="seccion">
   <h2>Minuto a minuto</h2>
   <div class="linea-tiempo panel">
-    <div class="minuto"><span class="cuando">${mmss(0)}</span><div><b>Consigna · ${minutos(t.consigna)}</b><p>Compartir la pantalla de Entrar. Leer el caso en dos frases y las cuatro reglas. Pegar el mensaje de ingreso. Ver cuántos entran, repartir las salas, abrir las salas.</p>
+    <div class="minuto"><span class="cuando">${mmss(0)}</span><div><b>Consigna · ${minutos(t.consigna)}</b><p>Compartir la pantalla de Entrar. Leer el caso en dos frases y las cuatro reglas. Pegar el mensaje de ingreso. Ver cómo se arman los equipos, iniciar el juego, mover a cada quien a su sala.</p>
       <div class="dice">«Van a negociar un contrato real entre una agencia y un cliente, dos contra dos. Cada lado tiene información privada que el otro no conoce. En cada pareja, uno habla y el otro lleva la cuenta. Tienen ${minutos(t.preparacion)} para prepararse y ${minutos(t.negociacion)} para cerrar. Gana la sala donde las dos partes salgan mejor, no la que más exprima al otro. Si no cierran, cada quien se queda con su plan B, y también evaluamos eso. Entren al enlace y escriban su nombre.»</div></div></div>
     <div class="minuto"><span class="cuando">${mmss(t.consigna)}</span><div><b>Preparación · ${minutos(t.preparacion)}</b><p>Salas abiertas. La web pone a cada pareja en Prepararse: seis pasos con el caso, quiénes son, sus intereses, su tabla y plan B, la hoja de preparación y su rol, con el tutorial animado. El staff elige su sala en la vista Staff y resuelve dudas de reglas. Aviso a las salas a los 30 segundos del final.</p></div></div>
     <div class="minuto"><span class="cuando">${mmss(inicioNeg)}</span><div><b>Negociación · ${minutos(t.negociacion)}</b><p>La web abre la mesa: la escena con los cuatro sentados, las rondas, los temas y el termómetro. El analista de cada lado marca las propuestas y guarda ofertas; el staff marca en el acta lo acordado y anota qué pasa. Avisos a las salas a los 3 minutos y al último minuto.</p></div></div>
@@ -1266,7 +1362,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
 <section class="seccion">
   <h2>Mensajes listos para pegar</h2>
   <div class="mensajes">${lista.map(([tt, m]) => `<div class="mensaje"><div><span class="ojo">${esc(tt)}</span><br><code>${esc(m)}</code></div><button type="button" class="boton chico" data-copiar="${esc(m)}">Copiar</button></div>`).join("")}</div>
-  <p class="nota-pie">Los avisos a las salas van por «Transmitir mensaje a todas las salas», en el panel de salas de Zoom. En el panel Admin aparecen en el momento justo.</p>
+  <p class="nota-pie">Los avisos a las salas van por el anuncio a las salas de ${esc(videollamada())} o por el chat de la reunión. En el panel Admin aparecen en el momento justo.</p>
 </section>
 <section class="seccion dos">
   <div class="panel"><h3>Qué muestra la actividad de la CEP</h3><ul class="lista">
@@ -1345,8 +1441,8 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     guardarS("sala", sala); guardarS("lado", lado); guardarS("rol", estado.rol);
     if (!estado.entrado) { estado.entrado = Date.now(); guardarS("entrado", estado.entrado); }
     anunciar(); reportar({ fase: "sentado", entrado: estado.entrado, rol: estado.rol, propuesta: propuestaActual() });
-    if (bloqueada("preparar")) { if (location.hash !== "#entrar") location.hash = "#entrar"; else render(); avisar("Listo. Esperá a que el administrador abra la preparación."); }
-    else location.hash = "#preparar";
+    if (bloqueada("preparar")) { if (location.hash !== "#entrar") location.hash = "#entrar"; else render(); if (!enVivo()) avisar("Listo. Esperá a que el administrador abra la preparación."); }
+    else if (location.hash !== "#preparar") location.hash = "#preparar"; else render();
   }
   function salirDeSala() {
     despedirse(estado.sala); if (estado.sala && estado.lado) Sync.fijar("salas/" + estado.sala + "/" + estado.lado, null);
@@ -1384,6 +1480,8 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     if (b.dataset.tutorial !== undefined) { Tutorial.abrir(estado.rol, estado.lado, () => { if (rutaActual === "preparar") marcarPaso("rol"); }); return; }
     if (b.dataset.etapa && b.getAttribute("aria-disabled") === "true") { e.preventDefault(); avisar(motivoBloqueo(b.dataset.etapa)); return; }
     if (!app.contains(b)) return;
+    if (b.dataset.unirmeEquipo) { estado.equipo = parseInt(b.dataset.unirmeEquipo, 10); guardarS("equipo", estado.equipo); anunciar(); pintarHub(); return; }
+    if (b.dataset.salirEquipo) { estado.equipo = null; guardarS("equipo", null); Sync.fijar("jugadores/" + idPestana + "/equipo", null); anunciar(); pintarHub(); return; }
     if (b.dataset.elegirSala) { seleccion.sala = parseInt(b.dataset.elegirSala, 10); seleccion.lado = b.dataset.elegirLado; pintarLobby(); return; }
     if (b.dataset.rol && !b.id) { estado.rol = b.dataset.rol; document.querySelectorAll(".rol-boton").forEach(x => x.setAttribute("aria-pressed", String(x === b))); actualizarBotonEntrar(); return; }
     if (b.dataset.tab) { document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", String(x === b))); document.querySelectorAll(".panel-tab").forEach(p => { p.hidden = p.dataset.panel !== b.dataset.tab; }); return; }
@@ -1451,10 +1549,11 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
         setTimeout(() => { if (!listo) { avisar("Sin respuesta en 8 s: revise la conexión con el servidor."); quitar(); } }, 8000);
         break;
       }
-      case "btn-repartir": case "btn-repartir-todos": { const n = parseInt((document.getElementById("rep-salas") || {}).value, 10) || C.salas || 6; const k = repartir(n, b.id === "btn-repartir-todos"); avisar(k ? k + " personas repartidas en " + n + " salas" : "No hay a quién repartir."); break; }
+      case "btn-acomodar": { const k = acomodar(); avisar(k ? k + (k === 1 ? " persona acomodada" : " personas acomodadas") : "No hay a quién acomodar o no queda espacio."); break; }
+      case "btn-iniciar-juego": if (iniciarJuego()) avisar("Juego iniciado: cada equipo ve su sala y su lado."); break;
       case "btn-reiniciar": document.getElementById("confirmar-reinicio").hidden = false; break;
       case "btn-reiniciar-no": document.getElementById("confirmar-reinicio").hidden = true; break;
-      case "btn-reiniciar-si": Sync.borrarTodo(); RELOJES.admin.fijar(null); vivo.salas = {}; vivo.jugadores = {}; vivo.config = {}; estado.actas = {}; guardar("actas", null); estado.revelar = false; guardar("revelar", false); estado.manualResultados = false; guardar("manualResultados", false); estado.chat = ""; guardar("chat", ""); codigosPublicados = null; document.getElementById("confirmar-reinicio").hidden = true; pintarVivo(); anunciar(); avisar("Sesión reiniciada"); break;
+      case "btn-reiniciar-si": Sync.borrarTodo(); RELOJES.admin.fijar(null); vivo.salas = {}; vivo.jugadores = {}; vivo.config = {}; estado.actas = {}; guardar("actas", null); estado.revelar = false; guardar("revelar", false); estado.manualResultados = false; guardar("manualResultados", false); estado.chat = ""; guardar("chat", ""); codigosPublicados = null; estado.equipo = null; guardarS("equipo", null); document.getElementById("confirmar-reinicio").hidden = true; pintarVivo(); anunciar(); avisar("Sesión reiniciada"); break;
     }
   });
   app.addEventListener("change", e => {
@@ -1495,12 +1594,16 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); if (rutaActual === "resultados") calcular(); });
   let asignacionVista = null;
   Sync.escuchar("jugadores", v => {
-    vivo.jugadores = v || {}; pintarConectados(); if (rutaActual === "admin") pintarVivo();
+    vivo.jugadores = v || {}; pintarConectados(); if (rutaActual === "admin") pintarVivo(); if (rutaActual === "entrar") pintarHub();
     const mia = vivo.jugadores[idPestana] && vivo.jugadores[idPestana].asignacion;
     const firma = mia ? mia.sala + "/" + mia.lado + "/" + mia.ts : null;
-    if (firma && firma !== asignacionVista && (mia.sala !== estado.sala || mia.lado !== estado.lado)) {
+    if (firma && firma !== asignacionVista && (mia.sala !== estado.sala || mia.lado !== estado.lado || (mia.rol && mia.rol !== estado.rol))) {
       asignacionVista = firma;
-      if (rutaActual === "entrar") render(); else avisar("El administrador te asignó la sala " + mia.sala + " · " + D.lados[mia.lado].rol + ". Está en Entrar.");
+      if (mia.equipo) { estado.equipo = mia.equipo; guardarS("equipo", mia.equipo); }
+      if (!VISTAS_FACILITADOR.includes(rutaActual)) {
+        sentarse(mia.sala, mia.lado, mia.rol || "ambos");
+        transicion("Sala " + mia.sala + " · " + D.lados[mia.lado].rol, "Entrá a la sala " + mia.sala + " en " + videollamada() + ". Ustedes son " + D.lados[mia.lado].nombre + "; tu rol: " + (ROLES[mia.rol] || ROLES.ambos).nombre + ".", "menta");
+      }
     } else if (firma) asignacionVista = firma;
   });
   if (estado.nombre) anunciar();
@@ -1509,5 +1612,5 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   render();
 
   /* para puntuar desde la consola o desde pruebas */
-  window.TratoHecho = { evaluar, parsearCodigos, ordenar, mejorTrato, frontera, puntos, codigoDe, estadoSala, estadoLaboratorio, rondaActual, faseActual, etapaSugerida, bloqueada, repartir };
+  window.TratoHecho = { evaluar, parsearCodigos, ordenar, mejorTrato, frontera, puntos, codigoDe, estadoSala, estadoLaboratorio, rondaActual, faseActual, etapaSugerida, bloqueada, acomodar, iniciarJuego };
 })();

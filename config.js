@@ -3,7 +3,7 @@
 window.CONFIG = {
   // Tablero en vivo (lobby, Admin y Staff ven cómo avanza cada sala). Cuatro opciones:
   //   "servidor" → la web está servida por servidor/index.js (Docker, Coolify): canal en vivo propio, sin nada que configurar.
-  //   null       → sin tablero en vivo. Los códigos viajan por el chat de Zoom. Siempre funciona.
+  //   null       → sin tablero en vivo. Los códigos viajan por el chat de la videollamada. Siempre funciona.
   //   "local"    → modo de ensayo en UNA computadora: las pestañas de un mismo navegador se ven entre sí.
   //   { ... }    → Firebase Realtime Database: tablero en vivo entre dispositivos sin servidor propio.
   //                Pasos en README.md. Se pega aquí el objeto firebaseConfig tal cual lo da la consola.
@@ -15,7 +15,10 @@ window.CONFIG = {
   // Clave que abre las vistas Admin y Staff. Cambiarla antes de la clase.
   claveStaff: "grupo4",
 
-  // Cuántas salas muestra el tablero en vivo aunque todavía no haya entrado nadie.
-  // 26 estudiantes en 5 grupos de la clase: 6 salas (cuatro de 4 y dos de 5).
-  salas: 6
+  // Cuántas salas muestra el tablero en vivo aunque todavía no haya entrado nadie, y cuántos
+  // equipos (dos por sala) ofrece el hub para armarse. Con 26 estudiantes: 6 salas, 12 equipos.
+  salas: 6,
+
+  // Cómo se llama la videollamada en los textos («entrá a la sala 3 en Teams»).
+  videollamada: "Teams"
 };
