@@ -20,6 +20,6 @@ window.CONFIG = {
   // con 26 personas en 5 salas, diez equipos, seis de tres y cuatro de dos.
   salas: 5,
 
-  // Cómo se llama la videollamada en los textos («entrá a la sala 3 en Teams»).
-  videollamada: "Teams"
+  // Cómo se llama la videollamada en los textos («entrá a la sala 3 en Zoom»).
+  videollamada: "Zoom"
 };

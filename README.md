@@ -15,7 +15,7 @@ carpeta raíz está fijada en la configuración del proyecto).
 
 ## La actividad en una frase
 
-Equipo contra equipo en cada sala de Teams: una **agencia digital** le vende un paquete
+Equipo contra equipo en cada sala de Zoom: una **agencia digital** le vende un paquete
 (sitio web, logo, redes) a una **cafetería** que abre pronto. Cinco temas sobre la
 mesa, tabla de puntos privada por lado, plan B que marca el mínimo, y un índice
 ganar-ganar que decide qué sala negoció mejor.
@@ -73,7 +73,7 @@ candado.
 
 | Etapa | Qué hay |
 |---|---|
-| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), pre-sala con el conteo en vivo hasta que el administrador abre el armado, y el hub de equipos con el plan fijado con esa cantidad. Las salas son fijas (`config.salas`, una por staff) y el tamaño de los equipos se ajusta a la gente: con P personas, min(salas, P/4) salas, dos equipos por sala, de ⌊P/T⌋ o ⌊P/T⌋+1 personas. Cuando están todos, «Iniciar juego» respeta los equipos armados, acomoda a quien sobra o falta, asigna a cada par de equipos una sala y los lados, sienta a cada persona y le muestra a qué sala de Teams entrar; arranca el reloj. Sin tablero en vivo queda la elección manual de sala y lado |
+| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), pre-sala con el conteo en vivo hasta que el administrador abre el armado, y el hub de equipos con el plan fijado con esa cantidad. Las salas son fijas (`config.salas`, una por staff) y el tamaño de los equipos se ajusta a la gente: con P personas, min(salas, P/4) salas, dos equipos por sala, de ⌊P/T⌋ o ⌊P/T⌋+1 personas. Cuando están todos, «Iniciar juego» respeta los equipos armados, acomoda a quien sobra o falta, asigna a cada par de equipos una sala y los lados, sienta a cada persona y le muestra a qué sala de Zoom entrar; arranca el reloj. Sin tablero en vivo queda la elección manual de sala y lado |
 | **Prepararse** | La ficha privada en seis pasos: el caso y las reglas, quiénes son y su posición, lo que les importa, la tabla de puntos y el plan B, la hoja de preparación y su rol. La primera vez se abre el tutorial animado |
 | **Negociar** | La escena de la sala (`escena.js`): los cuatro sentados con nombre y rol, quién tiene la palabra, la última oferta de cada lado como burbuja y el contrato con lo marcado. Debajo, la ronda, los cinco temas, el termómetro, la propuesta, las misiones, los apuntes y «Consultar mi ficha» |
 | **Cerrar** | La propuesta final contra el plan B. «Trato hecho» hace que los voceros se den la mano; «Sin acuerdo» los levanta de la mesa. Sale el código de la sala |
