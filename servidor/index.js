@@ -12,11 +12,17 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const PUERTO = parseInt(process.env.PORT || "3000", 10);
 const RAIZ = path.resolve(__dirname, "..");
 const CARPETA_DATOS = process.env.DATOS || path.join(RAIZ, "datos");
 const MAX_CUERPO = 64 * 1024;
+/* Versión de los archivos estáticos: un hash de todos los .js y .css de la carpeta, calculado al
+   arrancar. index.html la recibe en los «?v=__V__» de sus scripts y hojas. Así cada despliegue cambia
+   las direcciones y ningún navegador (ni Cloudflare, que alarga la caché de .js y .css a cuatro horas)
+   se queda con código viejo: basta una recarga normal. */
+const VERSION = (() => { const h = crypto.createHash("sha1"); for (const f of fs.readdirSync(RAIZ).sort()) if (/\.(js|css)$/.test(f)) h.update(fs.readFileSync(path.join(RAIZ, f))); return h.digest("hex").slice(0, 10); })();
 const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".pdf": "application/pdf", ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8", ".mp4": "video/mp4", ".srt": "text/plain; charset=utf-8" };
 
 /* ---------- almacenamiento: SQLite si existe node:sqlite, si no un archivo JSON ---------- */
@@ -104,7 +110,7 @@ const servidor = http.createServer(async (req, res) => {
     if (req.method === "DELETE" && !accion) { almacen.borrar(sesion); avisar(sesion, "arbol", {}); return json(res, 200, { ok: true }); }
     return json(res, 405, { error: "método no permitido" });
   }
-  if (url.pathname === "/api/salud") return json(res, 200, { ok: true, almacenamiento: almacen.tipo, sesiones_conectadas: [...oyentes.entries()].map(([s, g]) => ({ sesion: s, conectados: g.size })) });
+  if (url.pathname === "/api/salud") return json(res, 200, { ok: true, version: VERSION, almacenamiento: almacen.tipo, sesiones_conectadas: [...oyentes.entries()].map(([s, g]) => ({ sesion: s, conectados: g.size })) });
   // archivos estáticos, con direcciones limpias (/fichas -> fichas.html)
   let ruta = decodeURIComponent(url.pathname);
   const privada = /^\/(servidor|datos|Dockerfile)(\/|$)/.test(ruta) || /^\/\.|\/\./.test(ruta); // el código del servidor, la base y los archivos ocultos no se sirven
@@ -116,7 +122,13 @@ const servidor = http.createServer(async (req, res) => {
   let archivo = path.join(RAIZ, ruta);
   if (!path.extname(archivo) && fs.existsSync(archivo + ".html")) archivo += ".html";
   if (!fs.existsSync(archivo) || fs.statSync(archivo).isDirectory()) return noEncontrado();
-  res.writeHead(200, { "Content-Type": TIPOS[path.extname(archivo)] || "application/octet-stream", "Cache-Control": /\.(html|js|css)$/.test(archivo) ? "no-cache" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow" });
+  const ext = path.extname(archivo);
+  if (ext === ".html") {   // las páginas nunca se guardan y llevan la versión de sus archivos
+    const cuerpo = fs.readFileSync(archivo, "utf8").split("__V__").join(VERSION);
+    res.writeHead(200, { "Content-Type": TIPOS[ext], "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" });
+    return res.end(cuerpo);
+  }
+  res.writeHead(200, { "Content-Type": TIPOS[ext] || "application/octet-stream", "Cache-Control": /\.(js|css)$/.test(archivo) ? "public, max-age=86400" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow" });
   fs.createReadStream(archivo).pipe(res);
 });
 servidor.listen(PUERTO, () => console.log("Trato Hecho escuchando en el puerto " + PUERTO));

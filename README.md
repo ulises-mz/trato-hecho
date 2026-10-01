@@ -138,6 +138,11 @@ Lo que hay que saber para la clase:
   con una clave de facilitador en la web. Cuando pase la clase, apagar el
   sitio o reiniciar la sesión.
 - `datos/`, `servidor/` y los archivos ocultos no se sirven.
+- **Caché.** Cloudflare alarga a cuatro horas la caché de `.js` y `.css` en el
+  navegador, así que el servidor calcula al arrancar una versión (hash de todos
+  los `.js` y `.css`) y la mete en los `?v=__V__` de `index.html`; las páginas
+  van con `no-store`. Después de un despliegue basta una recarga normal. Los
+  404 también van con `no-store`, porque el borde los guardaba cinco minutos.
 
 Correr local con tablero en vivo:
 

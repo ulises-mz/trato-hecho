@@ -401,11 +401,15 @@
   function anunciar() {
     if (!estado.nombre || VISTAS_FACILITADOR.includes(rutaActual)) return;   // el facilitador no ocupa asiento ni cuenta como jugador
     Sync.escribir("jugadores/" + idPestana, { nombre: estado.nombre, sala: estado.sala || null, lado: estado.lado || null, rol: estado.rol, etapa: rutaActual, entrado: estado.entradoPlataforma || Date.now(), actualizado: Date.now() });
-    if (estado.sala && estado.lado) {
-      Sync.escribir("salas/" + estado.sala + "/gente/" + idPestana, { nombre: estado.nombre, lado: estado.lado, rol: estado.rol, entrado: estado.entrado || Date.now(), actualizado: Date.now() });
-      // una persona ocupa un solo asiento: si este id quedó en otra sala, se quita de ahí
-      Object.entries(vivo.salas || {}).forEach(([n, s]) => { if (String(n) !== String(estado.sala) && s && s.gente && s.gente[idPestana]) Sync.fijar("salas/" + n + "/gente/" + idPestana, null); });
-    }
+    if (estado.sala && estado.lado) Sync.escribir("salas/" + estado.sala + "/gente/" + idPestana, { nombre: estado.nombre, lado: estado.lado, rol: estado.rol, entrado: estado.entrado || Date.now(), actualizado: Date.now() });
+    limpiarAsientos();
+  }
+  /* Una persona ocupa un solo asiento: cualquier asiento con este id que no sea el actual se borra
+     (quedan de versiones anteriores, de otra pestaña con la misma identidad o de un cambio de sala). */
+  function limpiarAsientos() {
+    Object.entries(vivo.salas || {}).forEach(([n, s]) => {
+      if (s && s.gente && s.gente[idPestana] && !(estado.sala && estado.lado && String(n) === String(estado.sala))) Sync.fijar("salas/" + n + "/gente/" + idPestana, null);
+    });
   }
   function despedirse(sala) { if (sala) Sync.fijar("salas/" + sala + "/gente/" + idPestana, null); }
   const activo = x => x && x.nombre && Date.now() - (x.actualizado || 0) < 90000;
@@ -1404,7 +1408,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
         if (!(seleccion.sala && seleccion.lado)) { avisar("Tocá el lado de tu sala en el tablero."); return; }
         sentarse(seleccion.sala, seleccion.lado, estado.rol); break;
       }
-      case "btn-cambiar-nombre": { estado.nombre = ""; guardarS("nombre", null); render(); break; }
+      case "btn-cambiar-nombre": { if (estado.sala) despedirse(estado.sala); Sync.fijar("jugadores/" + idPestana, null); estado.nombre = ""; guardarS("nombre", null); render(); break; }
       case "btn-salir": salirDeSala(); break;
       case "btn-cerrar": case "btn-cerrar-2": { const letras = letrasActuales(); if (!letras.every(Boolean)) return; cerrarCon({ letras }); break; }
       case "btn-sin": case "btn-sin-2": abrirPanelSin(); break;
@@ -1478,7 +1482,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     vivo.reloj = v.reloj || null; tick();
     if (rutaActual === "resultado" || rutaActual === "resultados") { const rev = revelado(); if (rev !== (app.dataset.revelado === "1")) { app.dataset.revelado = rev ? "1" : "0"; render(); } }
   });
-  Sync.escuchar("salas", v => { vivo.salas = v || {}; pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); });
+  Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); });
   let asignacionVista = null;
   Sync.escuchar("jugadores", v => {
     vivo.jugadores = v || {}; pintarConectados(); if (rutaActual === "admin") pintarVivo();
