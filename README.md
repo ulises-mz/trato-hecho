@@ -15,20 +15,20 @@ carpeta raíz está fijada en la configuración del proyecto).
 
 ## La actividad en una frase
 
-Dos contra dos en cada sala de Zoom: una **agencia digital** le vende un paquete
+Equipo contra equipo en cada sala de Teams: una **agencia digital** le vende un paquete
 (sitio web, logo, redes) a una **cafetería** que abre pronto. Cinco temas sobre la
 mesa, tabla de puntos privada por lado, plan B que marca el mínimo, y un índice
 ganar-ganar que decide qué sala negoció mejor.
 
 | Fase | Dura | Qué pasa |
 |---|---:|---|
-| Consigna | 1 min | Se lee el caso y las cuatro reglas en la sala principal; se abren las salas |
-| Preparación | 3 min | Cada lado lee su ficha privada y llena la hoja de preparación |
-| Negociación | 7 min | Hablan y marcan las opciones en la mesa; la calculadora muestra solo sus puntos |
-| Cierre | 1 min | Una persona registra el trato y pega el código (`S3-BEDCD`, o `S4-SIN-EDCAB-C` si no cerraron) en el chat |
-| Resultados | 3 min | El tablero calcula, rankea, grafica y revela los intereses de los dos lados |
+| Consigna | 1 min | Se lee el caso y las cuatro reglas; «Iniciar juego» reparte lados y salas a los equipos ya armados |
+| Preparación | 4 min | Cada lado lee su ficha privada por pasos y llena la hoja de preparación |
+| Negociación | 10 min | Hablan y marcan las opciones en la mesa; el termómetro muestra solo sus puntos |
+| Cierre | 1 min | Cada equipo registra el cierre en la web: trato hecho o sin acuerdo. El código (`S3-BEDCD`) es solo respaldo |
+| Resultados | 4 min | El tablero se llena solo, rankea, grafica y revela los intereses de los dos lados |
 
-**15 minutos en total.** El guion minuto a minuto, los mensajes para pegar en Zoom
+**20 minutos en total.** El guion minuto a minuto, los mensajes para pegar en el chat
 y el plan por si algo falla están dentro de la web, en `#guion`. El administrador
 lleva la sesión desde `#admin`: un reloj con las cinco fases y los avisos que se
 iluminan cuando toca transmitirlos a las salas, con botón de copiar.
@@ -73,7 +73,7 @@ candado.
 
 | Etapa | Qué hay |
 |---|---|
-| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), lobby con los asientos de cada sala en tiempo real, el rol en la pareja y la asignación que mande el administrador. Al sentarse se quedan esperando ahí: la preparación la abre el administrador con un botón en Admin cuando ve que ya entraron todos |
+| **Entrar** | Login con el nombre (desde ahí cuenta como conectado) y el hub de equipos: equipos de dos, o de tres si la cuenta no da, doce para seis salas. Cuando están todos, «Iniciar juego» en Admin asigna a cada par de equipos una sala y los lados, sienta a cada persona y le muestra a qué sala de Teams entrar; arranca el reloj. Sin tablero en vivo queda la elección manual de sala y lado |
 | **Prepararse** | La ficha privada en seis pasos: el caso y las reglas, quiénes son y su posición, lo que les importa, la tabla de puntos y el plan B, la hoja de preparación y su rol. La primera vez se abre el tutorial animado |
 | **Negociar** | La escena de la sala (`escena.js`): los cuatro sentados con nombre y rol, quién tiene la palabra, la última oferta de cada lado como burbuja y el contrato con lo marcado. Debajo, la ronda, los cinco temas, el termómetro, la propuesta, las misiones, los apuntes y «Consultar mi ficha» |
 | **Cerrar** | La propuesta final contra el plan B. «Trato hecho» hace que los voceros se den la mano; «Sin acuerdo» los levanta de la mesa. Sale el código de la sala |
@@ -134,7 +134,7 @@ Lo que hay que saber para la clase:
 
 - **La base vive dentro del contenedor.** Volver a desplegar la crea de cero
   (igual que «Reiniciar la sesión»). No desplegar durante la actividad.
-- No hay autenticación en la API, a propósito: es una actividad de 15 minutos
+- No hay autenticación en la API, a propósito: es una actividad de 20 minutos
   con una clave de facilitador en la web. Cuando pase la clase, apagar el
   sitio o reiniciar la sesión.
 - `datos/`, `servidor/` y los archivos ocultos no se sirven.
@@ -266,7 +266,7 @@ cómo jugar según el rol, con voz en off y subtítulos (`como-jugar.srt`). Las
 fuentes están en `../video/`: guion, línea de tiempo y la animación en HTML
 que se graba con Playwright; el script `pipeline.py` regenera voz y video.
 
-Sin Firebase no hace falta backend: los códigos viajan por el chat de Zoom y el
+Sin Firebase no hace falta backend: los códigos viajan por el chat de la videollamada y el
 tablero (`#resultados`) recibe el chat pegado tal cual. Con Firebase, además,
 «Cargar códigos en vivo» trae lo que registró cada sala y cuenta como sin
 acuerdo a las que entraron y no cerraron. Siempre se pueden agregar salas a mano.
