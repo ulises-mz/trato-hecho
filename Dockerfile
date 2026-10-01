@@ -1,8 +1,10 @@
 # Trato Hecho: web estática + servidor de sincronización en vivo (sin dependencias).
+# Sin HEALTHCHECK a propósito: el proxy (Traefik) no enruta un contenedor hasta que Docker lo
+# declara sano, y con la comprobación dentro de la imagen el dominio se quedaba en 404.
+# El estado del servidor se consulta en /api/salud.
 FROM node:24-alpine
 WORKDIR /app
 COPY . .
 ENV PORT=3000 DATOS=/app/datos
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/api/salud || exit 1
 CMD ["node", "servidor/index.js"]
