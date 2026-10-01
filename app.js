@@ -154,8 +154,11 @@
   const vivo = { salas: {}, jugadores: {}, config: {}, reloj: null, conexion: Sync.estado() };
   let rutaActual = "entrar";
   const query = new URLSearchParams(location.search);
-  if (query.get("sala") && !estado.sala) { const n = parseInt(query.get("sala"), 10); if (n > 0) { estado.sala = n; guardarS("sala", n); } }
-  if (LADOS.includes(query.get("lado")) && !estado.lado) { estado.lado = query.get("lado"); guardarS("lado", estado.lado); }
+  /* Lo que se toca en el lobby es solo una selección; el asiento real (estado.sala/lado) se fija al
+     pulsar «Sentarme». Así nadie aparece sentado por andar tocando salas. */
+  const seleccion = { sala: estado.sala, lado: estado.lado };
+  if (query.get("sala") && !estado.sala) { const n = parseInt(query.get("sala"), 10); if (n > 0) seleccion.sala = n; }
+  if (LADOS.includes(query.get("lado")) && !estado.lado) seleccion.lado = query.get("lado");
   const tieneClave = () => !C.claveStaff || leer("staff", null) === String(C.claveStaff);
   const enVivo = () => vivo.conexion.modo !== "nada";
   const dentro = () => !!(estado.nombre && estado.sala && estado.lado);
@@ -427,16 +430,16 @@
     const aviso = enVivo() ? "" : `<p class="nota-pie">Sin tablero en vivo no se ve quién más está en cada sala; la elección funciona igual.</p>`;
     return aviso + `<div class="lobby">${lista.map(n => {
       const total = genteDe(n).length;
-      return `<div class="sala-lobby ${estado.sala === n ? "elegida" : ""}" data-sala-lobby="${n}">
+      return `<div class="sala-lobby ${seleccion.sala === n ? "elegida" : ""}" data-sala-lobby="${n}">
   <div class="sala-lobby-cab"><b>Sala ${n}</b><span class="cinta gris" style="font-size:.8rem">${total ? total + (total === 1 ? " persona" : " personas") : "vacía"}</span></div>
-  <div class="lados-lobby">${LADOS.map(l => `<button type="button" class="lado-col ${l}" data-elegir-sala="${n}" data-elegir-lado="${l}" aria-pressed="${estado.sala === n && estado.lado === l}"><span class="lado-col-cab acento-${l}">${esc(D.lados[l].rol)} · ${esc(D.lados[l].nombre)}</span>${asientosHTML(n, l, 2)}</button>`).join("")}</div>
+  <div class="lados-lobby">${LADOS.map(l => `<button type="button" class="lado-col ${l}" data-elegir-sala="${n}" data-elegir-lado="${l}" aria-pressed="${seleccion.sala === n && seleccion.lado === l}"><span class="lado-col-cab acento-${l}">${esc(D.lados[l].rol)} · ${esc(D.lados[l].nombre)}</span>${asientosHTML(n, l, 2)}</button>`).join("")}</div>
 </div>`; }).join("")}</div>`;
   }
   function pintarLobby() { const z = document.getElementById("lobby"); if (z) z.innerHTML = lobbyHTML(); actualizarBotonEntrar(); }
   function actualizarBotonEntrar() {
     const b = document.getElementById("btn-entrar"); if (!b) return;
-    b.disabled = !(estado.nombre && estado.sala && estado.lado);
-    b.textContent = estado.sala && estado.lado ? `Sentarme en la sala ${estado.sala} · ${D.lados[estado.lado].rol} · ${ROLES[estado.rol].nombre}` : "Elija una sala y un lado";
+    b.disabled = !(estado.nombre && seleccion.sala && seleccion.lado);
+    b.textContent = seleccion.sala && seleccion.lado ? `Sentarme en la sala ${seleccion.sala} · ${D.lados[seleccion.lado].rol} · ${ROLES[estado.rol].nombre}` : "Elija una sala y un lado";
   }
   function conectadosHTML() {
     if (!enVivo()) return "";
@@ -1281,7 +1284,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     if (ETAPAS.some(e => e.id === ruta) && bloqueada(ruta)) { avisar(motivoBloqueo(ruta)); ruta = etapaSugerida(); if (bloqueada(ruta)) ruta = "entrar"; }
     if ("#" + ruta !== location.hash) history.replaceState(null, "", "#" + ruta);
     rutaActual = ruta; firmaEscena = "";
-    if (ruta === "entrar") { estado.sala = leerS("sala", null); estado.lado = leerS("lado", null); }
+    if (ruta === "entrar") { seleccion.sala = estado.sala; seleccion.lado = estado.lado; }
     if (Tutorial.abierto()) Tutorial.cerrar();
     app.innerHTML = VISTAS_FACILITADOR.includes(ruta) && !tieneClave() ? vistaClave(ruta) : vistas[ruta]();
     tooltip.hidden = true;
@@ -1331,6 +1334,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     despedirse(estado.sala); if (estado.sala && estado.lado) Sync.fijar("salas/" + estado.sala + "/" + estado.lado, null);
     estado.sala = null; estado.lado = null; estado.trato = {}; estado.cerrado = null; estado.entrado = null; estado.registro = []; estado.avisadas = [];
     ["sala", "lado", "trato", "cerrado", "entrado", "registro", "avisadas"].forEach(k => guardarS(k, null));
+    seleccion.sala = null; seleccion.lado = null;
     anunciar(); location.hash = "#entrar"; render();
   }
 
@@ -1362,7 +1366,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     if (b.dataset.tutorial !== undefined) { Tutorial.abrir(estado.rol, estado.lado, () => { if (rutaActual === "preparar") marcarPaso("rol"); }); return; }
     if (b.dataset.etapa && b.getAttribute("aria-disabled") === "true") { e.preventDefault(); avisar(motivoBloqueo(b.dataset.etapa)); return; }
     if (!app.contains(b)) return;
-    if (b.dataset.elegirSala) { estado.sala = parseInt(b.dataset.elegirSala, 10); estado.lado = b.dataset.elegirLado; pintarLobby(); return; }
+    if (b.dataset.elegirSala) { seleccion.sala = parseInt(b.dataset.elegirSala, 10); seleccion.lado = b.dataset.elegirLado; pintarLobby(); return; }
     if (b.dataset.rol && !b.id) { estado.rol = b.dataset.rol; document.querySelectorAll(".rol-boton").forEach(x => x.setAttribute("aria-pressed", String(x === b))); actualizarBotonEntrar(); return; }
     if (b.dataset.tab) { document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", String(x === b))); document.querySelectorAll(".panel-tab").forEach(p => { p.hidden = p.dataset.panel !== b.dataset.tab; }); return; }
     if (b.dataset.accion === "reloj") { RELOJES[b.dataset.reloj || "equipo"].alternar(); return; }
@@ -1397,8 +1401,8 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
       case "btn-arrancar": if (!RELOJES.admin.inicio) { RELOJES.admin.alternar(); avisar("Reloj en marcha: los equipos pasan a Prepararse."); } break;
       case "btn-entrar": {
         if (!estado.nombre) { avisar("Escribí tu nombre primero."); return; }
-        if (!(estado.sala && estado.lado)) { avisar("Tocá el lado de tu sala en el tablero."); return; }
-        sentarse(estado.sala, estado.lado, estado.rol); break;
+        if (!(seleccion.sala && seleccion.lado)) { avisar("Tocá el lado de tu sala en el tablero."); return; }
+        sentarse(seleccion.sala, seleccion.lado, estado.rol); break;
       }
       case "btn-cambiar-nombre": { estado.nombre = ""; guardarS("nombre", null); render(); break; }
       case "btn-salir": salirDeSala(); break;
