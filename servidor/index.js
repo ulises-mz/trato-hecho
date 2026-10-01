@@ -22,8 +22,15 @@ const MAX_CUERPO = 64 * 1024;
    arrancar. index.html la recibe en los «?v=__V__» de sus scripts y hojas. Así cada despliegue cambia
    las direcciones y ningún navegador (ni Cloudflare, que alarga la caché de .js y .css a cuatro horas)
    se queda con código viejo: basta una recarga normal. */
-const VERSION = (() => { const h = crypto.createHash("sha1"); for (const f of fs.readdirSync(RAIZ).sort()) if (/\.(js|css)$/.test(f)) h.update(fs.readFileSync(path.join(RAIZ, f))); return h.digest("hex").slice(0, 10); })();
-const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".pdf": "application/pdf", ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8", ".mp4": "video/mp4", ".srt": "text/plain; charset=utf-8" };
+// Versión = hash de los .js/.css y de video/ (mp4, vtt, póster): el HTML la pone en ?v= y así un archivo
+// nuevo nunca se queda atrapado en la caché del navegador ni en la de Cloudflare.
+const VERSION = (() => {
+  const h = crypto.createHash("sha1");
+  const sumar = (dir, filtro) => { if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir).sort()) if (filtro.test(f)) h.update(fs.readFileSync(path.join(dir, f))); };
+  sumar(RAIZ, /\.(js|css)$/); sumar(path.join(RAIZ, "video"), /\.(mp4|vtt|jpg)$/);
+  return h.digest("hex").slice(0, 10);
+})();
+const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".pdf": "application/pdf", ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8", ".mp4": "video/mp4", ".webm": "video/webm", ".vtt": "text/vtt; charset=utf-8", ".jpg": "image/jpeg", ".srt": "text/plain; charset=utf-8" };
 
 /* ---------- almacenamiento: SQLite si existe node:sqlite, si no un archivo JSON ---------- */
 fs.mkdirSync(CARPETA_DATOS, { recursive: true });
@@ -128,7 +135,20 @@ const servidor = http.createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": TIPOS[ext], "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" });
     return res.end(cuerpo);
   }
-  res.writeHead(200, { "Content-Type": TIPOS[ext] || "application/octet-stream", "Cache-Control": /\.(js|css)$/.test(archivo) ? "public, max-age=86400" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow" });
+  const st = fs.statSync(archivo);
+  const cab = { "Content-Type": TIPOS[ext] || "application/octet-stream", "Cache-Control": /\.(js|css|mp4|vtt|jpg)$/.test(archivo) ? "public, max-age=86400" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow", "Accept-Ranges": "bytes" };
+  // Rangos (Range: bytes=a-b): el <video> de la sala de espera los necesita para arrancar sin bajar todo
+  // el archivo y para adelantar; en iPhone, sin 206 el video directamente no se reproduce.
+  const rango = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+  if (rango && (rango[1] || rango[2])) {
+    const a = rango[1] ? parseInt(rango[1], 10) : Math.max(0, st.size - parseInt(rango[2], 10)), b = rango[1] && rango[2] ? Math.min(parseInt(rango[2], 10), st.size - 1) : st.size - 1;
+    if (a >= st.size || a > b) { res.writeHead(416, { "Content-Range": "bytes */" + st.size, "Cache-Control": "no-store" }); return res.end(); }
+    res.writeHead(206, Object.assign(cab, { "Content-Range": `bytes ${a}-${b}/${st.size}`, "Content-Length": b - a + 1 }));
+    if (req.method === "HEAD") return res.end();
+    return fs.createReadStream(archivo, { start: a, end: b }).pipe(res);
+  }
+  res.writeHead(200, Object.assign(cab, { "Content-Length": st.size }));
+  if (req.method === "HEAD") return res.end();
   fs.createReadStream(archivo).pipe(res);
 });
 servidor.listen(PUERTO, () => console.log("Trato Hecho escuchando en el puerto " + PUERTO));

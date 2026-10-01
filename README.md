@@ -73,7 +73,7 @@ candado.
 
 | Etapa | Qué hay |
 |---|---|
-| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), pre-sala con el conteo en vivo hasta que el administrador abre el armado, y el hub de equipos con el plan fijado con esa cantidad. Las salas son fijas (`config.salas`, una por staff) y el tamaño de los equipos se ajusta a la gente: con P personas, min(salas, P/4) salas, dos equipos por sala, de ⌊P/T⌋ o ⌊P/T⌋+1 personas. Cuando están todos, «Iniciar juego» respeta los equipos armados, acomoda a quien sobra o falta, asigna a cada par de equipos una sala y los lados, sienta a cada persona y le muestra a qué sala de Zoom entrar; arranca el reloj. Sin tablero en vivo queda la elección manual de sala y lado |
+| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), pre-sala con el video de introducción (al terminarlo se habilita «Estoy listo»; el administrador ve el conteo en vivo y cuántos están listos) hasta que abre el armado, y el hub de equipos con el plan fijado con esa cantidad. Las salas son fijas (`config.salas`, una por staff) y el tamaño de los equipos se ajusta a la gente: con P personas, min(salas, P/4) salas, dos equipos por sala, de ⌊P/T⌋ o ⌊P/T⌋+1 personas. Cuando están todos, «Iniciar juego» respeta los equipos armados, acomoda a quien sobra o falta, asigna a cada par de equipos una sala y los lados, sienta a cada persona y le muestra a qué sala de Zoom entrar; arranca el reloj. Sin tablero en vivo queda la elección manual de sala y lado |
 | **Prepararse** | La ficha privada en seis pasos: el caso y las reglas, quiénes son y su posición, lo que les importa, la tabla de puntos y el plan B, la hoja de preparación y su rol. La primera vez se abre el tutorial animado |
 | **Negociar** | La escena de la sala (`escena.js`): los cuatro sentados con nombre y rol, quién tiene la palabra, la última oferta de cada lado como burbuja y el contrato con lo marcado. Debajo, la ronda, los cinco temas, el termómetro, la propuesta, las misiones, los apuntes y «Consultar mi ficha» |
 | **Cerrar** | La propuesta final contra el plan B. «Trato hecho» hace que los voceros se den la mano; «Sin acuerdo» los levanta de la mesa. Sale el código de la sala |
@@ -85,8 +85,8 @@ candado.
 |---|---|---|
 | Estudiantes | Inicio, Mi ficha, Mesa | Escriben su nombre y entran desde el **lobby**: las salas con sus asientos de agencia y cliente, donde se ve llegar a los demás en tiempo real (avatar con iniciales y rol). La ficha es un dossier por pestañas (Resumen, Intereses, Puntos, Guion, Preparación) con la franja de quién está en cada lado; la mesa funciona como apuntes: termómetro de puntos contra el plan B, propuesta sobre la mesa, registro de ofertas (nuestras y de ellos) y notas rápidas |
 | Vocero / Analista | Mi ficha | En cada pareja uno habla y el otro lleva la cuenta. El vocero abre en la pestaña Guion (qué decir, qué preguntar, qué defender y qué cambiar); el analista abre en Puntos. Quien está solo elige «Los dos» |
-| Administrador | `#admin` | Reloj de las cinco fases que manda sobre los relojes de los equipos, avisos que se iluminan cuando toca, tablero de salas en vivo, reinicio de sesión |
-| Staff | `#staff` | Escribano de su sala: elige la sala, marca en el acta lo que se va acordando, anota qué pasa con un toque y registra el cierre (trato hecho o sin acuerdo). Debajo, todas las salas en vivo |
+| Administrador | `#admin` | Reloj de las cinco fases que manda sobre los relojes de los equipos, avisos que se iluminan cuando toca y que la web muestra sola, con sonido, en la pantalla de cada equipo (30 segundos de preparación, 3 minutos, último minuto, cierre de salas), tablero de salas en vivo, reinicio de sesión |
+| Staff | `#staff` | Escribano de su sala: elige la sala, marca en el acta lo que se va acordando, anota qué pasa con un toque y registra el cierre (trato hecho o sin acuerdo). Recibe los mismos avisos automáticos que los equipos. Debajo, todas las salas en vivo |
 | Resultados | `#resultados` | Carga los códigos en vivo o el chat pegado, rankea, grafica, revela y muestra los apuntes del staff de cada sala |
 
 Admin, Staff, Resultados y Guion piden la **clave** de `config.js`
@@ -140,9 +140,14 @@ Lo que hay que saber para la clase:
 - `datos/`, `servidor/` y los archivos ocultos no se sirven.
 - **Caché.** Cloudflare alarga a cuatro horas la caché de `.js` y `.css` en el
   navegador, así que el servidor calcula al arrancar una versión (hash de todos
-  los `.js` y `.css`) y la mete en los `?v=__V__` de `index.html`; las páginas
-  van con `no-store`. Después de un despliegue basta una recarga normal. Los
+  los `.js` y `.css` y de `video/`) y la mete en los `?v=__V__` de `index.html`; las páginas
+  van con `no-store` y `app.js` lee la versión de su propia etiqueta `<script>` para
+  pedir el video con ella. Después de un despliegue basta una recarga normal. Los
   404 también van con `no-store`, porque el borde los guardaba cinco minutos.
+- **Video.** `video/intro.mp4` (con `intro.vtt` e `intro-poster.jpg`) se sirve con
+  `Accept-Ranges` y responde `206` a los `Range`: sin eso Safari en iPhone no lo
+  reproduce. Pesa 12,5 MB y Cloudflare lo guarda en el borde, así que treinta
+  personas a la vez no le pegan al contenedor.
 
 Correr local con tablero en vivo:
 
@@ -205,6 +210,7 @@ datos.js        EL CASO: textos, opciones, puntos, plan B, tiempos. Cambiar aqu�
 config.js       LA INSTALACIÓN: motor en vivo (servidor, local o Firebase), nombre de sesión, clave, salas
 sync.js         canal en vivo: servidor propio (REST + SSE), Firebase o localStorage
 servidor/       el servidor: sirve la web y guarda las sesiones en SQLite (sin dependencias)
+video/          el video de introducción de la pre-sala: intro.mp4, intro.vtt (subtítulos) e intro-poster.jpg
 Dockerfile      imagen para Coolify o cualquier Docker: node:24-alpine, puerto 3000
 firebase-rules.json  reglas de la base si se usa Firebase
 fichas.html     versión imprimible de las fichas (fichas.html?lado=agencia)
@@ -258,18 +264,25 @@ La mesa se juega como un laboratorio:
 
 ## El video
 
-**Muestra la interfaz anterior** (pestañas Mi ficha y Mesa). Hay que
-regrabarlo con el guion adaptado a las etapas; el pipeline sigue sirviendo.
+`video/intro.mp4` (1:52, 1280×720) es el video de introducción que cada persona
+ve en la **pre-sala** al entrar con su nombre: el caso, de qué trata el juego y
+cómo va a ser la sesión, con voz en off expresiva (ElevenLabs), efectos y
+subtítulos (`video/intro.vtt`). Al terminarlo se habilita «Estoy listo»; si el
+video no carga, el botón se habilita igual para no trabar a nadie. El
+administrador ve «N de M listos» y abre el armado cuando estén todos. Se
+regenera con `../video/intro-pipeline.py` (en el hub) y se copian aquí
+`intro.mp4`, `intro.vtt` e `intro-poster.jpg`; este repo es el único que
+versiona el `.mp4` (el hub ignora los `.mp4`).
 
-[`../video/como-jugar.mp4`](../video/como-jugar.mp4) (1:57, 1280×720) explica
-cómo jugar según el rol, con voz en off y subtítulos (`como-jugar.srt`). Las
-fuentes están en `../video/`: guion, línea de tiempo y la animación en HTML
-que se graba con Playwright; el script `pipeline.py` regenera voz y video.
+[`../video/como-jugar.mp4`](../video/como-jugar.mp4) (1:57) explica cómo jugar
+según el rol, pero **muestra la interfaz anterior** (pestañas Mi ficha y Mesa):
+hay que regrabarlo o retirarlo; su pipeline (`../video/pipeline.py`) sigue sirviendo.
 
-Sin Firebase no hace falta backend: los códigos viajan por el chat de la videollamada y el
-tablero (`#resultados`) recibe el chat pegado tal cual. Con Firebase, además,
-«Cargar códigos en vivo» trae lo que registró cada sala y cuenta como sin
-acuerdo a las que entraron y no cerraron. Siempre se pueden agregar salas a mano.
+Sin tablero en vivo no hace falta backend: los códigos viajan por el chat de la
+videollamada y el tablero (`#resultados`) recibe el chat pegado tal cual. Con el
+servidor (o Firebase), «Cargar códigos en vivo» trae lo que registró cada sala y
+cuenta como sin acuerdo a las que entraron y no cerraron. Siempre se pueden
+agregar salas a mano.
 
 ## Puntuar desde la terminal
 

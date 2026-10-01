@@ -143,6 +143,8 @@
     expulsionVista: leerS("expulsionVista", null),
     entradoPlataforma: leerS("entradoPlataforma", null),
     entrado: leerS("entrado", null),
+    videoVisto: leerS("videoVisto", null),   // terminó (o falló) el video de la pre-sala: habilita «Estoy listo»
+    listo: leerS("listo", null),             // marcó «Estoy listo» en la pre-sala
     trato: leerS("trato", {}),
     cerrado: leerS("cerrado", null),
     registro: leerS("registro", []),
@@ -392,9 +394,10 @@
     const estudiante = ETAPAS.some(e => e.id === rutaActual);
     document.body.classList.toggle("presion", estudiante && !!f && f.id === "negociacion" && f.restante <= 60 && !estado.cerrado);
     document.body.classList.toggle("presion-suave", estudiante && !!f && f.id === "negociacion" && f.restante > 60 && f.restante <= 150 && !estado.cerrado);
-    vigilarEtapa();
+    vigilarEtapa(); vigilarAvisos();
     if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); }
     if (rutaActual === "entrar" && dentro() && !bloqueada("preparar") && document.querySelector(".espera-linea")) render();
+    if (rutaActual === "entrar") { engancharVideo(); if (tics % 4 === 0) pintarListos(); }
     if (++tics % 10 === 0) { pintarVivo(); pintarPresencia(); pintarConectados(); if (rutaActual === "entrar") pintarLobby(); if (estado.nombre && tics % 30 === 0) { anunciar(); if (dentro() && (rutaActual === "preparar" || rutaActual === "negociar" || rutaActual === "cerrar")) reportar({}); } }
   }
   setInterval(tick, 500);
@@ -416,7 +419,7 @@
   function anunciar() {
     if (!estado.nombre || VISTAS_FACILITADOR.includes(rutaActual)) return;   // el facilitador no ocupa asiento ni cuenta como jugador
     equipoVigente();
-    Sync.escribir("jugadores/" + idPestana, { nombre: estado.nombre, equipo: estado.equipo || null, sala: estado.sala || null, lado: estado.lado || null, rol: estado.rol, etapa: rutaActual, entrado: estado.entradoPlataforma || Date.now(), actualizado: Date.now() });
+    Sync.escribir("jugadores/" + idPestana, { nombre: estado.nombre, equipo: estado.equipo || null, sala: estado.sala || null, lado: estado.lado || null, rol: estado.rol, etapa: rutaActual, listo: estado.listo || null, visto: estado.videoVisto || null, entrado: estado.entradoPlataforma || Date.now(), actualizado: Date.now() });
     if (estado.sala && estado.lado) Sync.escribir("salas/" + estado.sala + "/gente/" + idPestana, { nombre: estado.nombre, lado: estado.lado, rol: estado.rol, entrado: estado.entrado || Date.now(), actualizado: Date.now() });
     limpiarAsientos();
   }
@@ -439,8 +442,8 @@
   }
   /* El administrador saca a todos (o a una persona): la pestaña vuelve a la pantalla del nombre, limpia. */
   function expulsar(motivo) {
-    ["nombre", "entradoPlataforma", "sala", "lado", "equipo", "equipoArmado", "entrado", "trato", "cerrado", "registro", "avisadas", "prepVistos", "tutoVisto", "inicio", "inicio.fase"].forEach(k => guardarS(k, null));
-    Object.assign(estado, { nombre: "", entradoPlataforma: null, sala: null, lado: null, equipo: null, entrado: null, trato: {}, cerrado: null, registro: [], avisadas: [], prepVistos: [] });
+    ["nombre", "entradoPlataforma", "sala", "lado", "equipo", "equipoArmado", "entrado", "trato", "cerrado", "registro", "avisadas", "prepVistos", "tutoVisto", "inicio", "inicio.fase", "videoVisto", "listo", "avisosVistos"].forEach(k => guardarS(k, null));
+    Object.assign(estado, { nombre: "", entradoPlataforma: null, sala: null, lado: null, equipo: null, entrado: null, trato: {}, cerrado: null, registro: [], avisadas: [], prepVistos: [], videoVisto: null, listo: null });
     RELOJES.equipo.inicio = null; seleccion.sala = null; seleccion.lado = null; firmaEscena = "";
     if (Tutorial.abierto()) Tutorial.cerrar();
     if (location.hash !== "#entrar") location.hash = "#entrar"; else render();
@@ -489,6 +492,45 @@
     const b = document.getElementById("btn-entrar"); if (!b) return;
     b.disabled = !(estado.nombre && seleccion.sala && seleccion.lado);
     b.textContent = seleccion.sala && seleccion.lado ? `Sentarme en la sala ${seleccion.sala} · ${D.lados[seleccion.lado].rol} · ${ROLES[estado.rol].nombre}` : "Elija una sala y un lado";
+  }
+  /* ---------- pre-sala: video de introducción y «Estoy listo» ----------
+     Cada persona ve el video al entrar. Al terminar (o si no carga) se habilita «Estoy listo»; el
+     administrador ve cuántos marcaron y abre el armado cuando estén todos. */
+  const VERSION_WEB = (() => { const t = document.querySelector('script[src*="app.js"]'); const m = t && /[?&]v=([^&]+)/.exec(t.getAttribute("src") || ""); return m ? m[1] : ""; })();
+  const conVersion = ruta => VERSION_WEB ? ruta + "?v=" + VERSION_WEB : ruta;
+  function videoIntroHTML() {
+    return `<div class="video-intro"><video id="video-intro" controls playsinline preload="metadata" poster="${conVersion("video/intro-poster.jpg")}"><source src="${conVersion("video/intro.mp4")}" type="video/mp4"><track kind="subtitles" srclang="es" label="Español" src="${conVersion("video/intro.vtt")}" default>Tu navegador no reproduce el video.</video></div>`;
+  }
+  const listosDe = j => j.filter(x => x.listo).length;
+  function listosTexto() {
+    const j = jugadoresActivos(), k = listosDe(j);
+    if (!j.length) return "Esperando al administrador…";
+    if (j.length >= 2 && k >= j.length) return `Todos listos (${k}). El administrador abre el armado de equipos en un momento.`;
+    return `${k} de ${j.length} ${j.length === 1 ? "listo" : "listos"}. Esperando al resto…`;
+  }
+  function notaListo() {
+    if (estado.listo) return "Ya marcaste que estás listo. Cuando estén todos, el administrador abre los equipos.";
+    if (estado.videoVisto) return "Ya podés marcar que estás listo.";
+    return "El botón se habilita al terminar el video.";
+  }
+  function pintarListos() {
+    const z = document.getElementById("listos"); if (z) { const h = `<span class="reloj-arena" aria-hidden="true"></span><p>${listosTexto()}</p>`; if (z.innerHTML !== h) z.innerHTML = h; }
+    const n = document.getElementById("listo-nota"); if (n && n.textContent !== notaListo()) n.textContent = notaListo();
+    const b = document.getElementById("btn-listo"); if (b && estado.videoVisto && b.disabled) b.disabled = false;
+  }
+  function habilitarListo(motivo) {
+    if (estado.videoVisto) return;
+    estado.videoVisto = Date.now(); guardarS("videoVisto", estado.videoVisto);
+    pintarListos(); if (motivo) avisar(motivo);
+  }
+  let videoEnganchado = null;
+  function engancharVideo() {
+    const v = document.getElementById("video-intro"); if (!v || v === videoEnganchado) return; videoEnganchado = v;
+    v.addEventListener("ended", () => habilitarListo("Fin del video: ya podés marcar «Estoy listo»."));
+    // Si el video no carga (red, códec), no se bloquea a nadie: el botón se habilita igual.
+    const falla = () => habilitarListo("El video no se pudo reproducir; marcá «Estoy listo» igual.");
+    v.addEventListener("error", falla); v.querySelectorAll("source").forEach(x => x.addEventListener("error", falla));
+    if (!estado.videoVisto && !estado.listo) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }   // tras pulsar «Entrar» el navegador suele permitirlo; si no, quedan los controles
   }
   function conectadosHTML() {
     if (!enVivo()) return "";
@@ -648,7 +690,7 @@
       Object.keys(cfg).forEach(n => { const a = cfg[n]; salas[a.sala] = salas[a.sala] || {}; salas[a.sala][a.lado] = { equipo: n, gente: (equipos[n] || []).map(x => x.nombre) }; });
       porSala = `<h3 style="margin-top:14px">Quién va a cada sala de ${esc(videollamada())}</h3><p class="nota-pie">Esta es la lista para mover a cada persona a su sala en la videollamada.</p><div class="vivo-grid" style="margin-top:8px">${Object.keys(salas).sort((a, b) => a - b).map(n => `<div class="sala-card"><div class="sala-cab"><b>Sala ${n}</b></div>${LADOS.map(l => { const x = salas[n][l]; return `<div class="lado-linea"><span class="quien acento-${l}">${esc(D.lados[l].rol)}</span><span class="nombres">${x ? esc(x.gente.join(", ")) + ` <small>equipo ${esc(x.equipo)}</small>` : "<span class='nota-pie'>sin equipo</span>"}</span></div>`; }).join("")}</div>`).join("")}</div>`;
     }
-    const lista = `<div class="jugadores" style="margin-top:10px">${armado() ? "" : `<p class="nota-pie" style="flex-basis:100%">Pre-sala: todavía no hay equipos. Se arman cuando abrás el armado, con el tamaño que dé la cantidad de gente.</p>`}${activos.map(x => `<span class="jugador ${x.equipo > 0 ? "" : "sin-sala"}"><span class="avatar ${x.lado || ""}">${esc(iniciales(x.nombre))}</span>${esc(x.nombre)}<small>${x.sala ? `S${x.sala}` : x.equipo > 0 ? `eq. ${x.equipo}` : "sin equipo"} · ${esc(hace(x.actualizado))}</small><button type="button" class="tuto-cerrar" style="width:24px;height:24px;font-size:.7rem;box-shadow:none" data-sacar="${esc(x.id)}" data-nombre="${esc(x.nombre)}" aria-label="Sacar a ${esc(x.nombre)}" title="Sacar">✕</button></span>`).join("") || `<span class="nota-pie">Nadie conectado.</span>`}</div>`;
+    const lista = `<div class="jugadores" style="margin-top:10px">${armado() ? "" : `<p class="nota-pie" style="flex-basis:100%">Pre-sala: todavía no hay equipos. Se arman cuando abrás el armado, con el tamaño que dé la cantidad de gente.</p>`}${activos.map(x => `<span class="jugador ${x.equipo > 0 ? "" : "sin-sala"}"><span class="avatar ${x.lado || ""}">${esc(iniciales(x.nombre))}</span>${!armado() && x.listo ? `<span class="listo-marca" title="Ya marcó que está listo">${Iconos.svg("check")}</span>` : ""}${esc(x.nombre)}<small>${x.sala ? `S${x.sala}` : x.equipo > 0 ? `eq. ${x.equipo}` : "sin equipo"} · ${esc(hace(x.actualizado))}</small><button type="button" class="tuto-cerrar" style="width:24px;height:24px;font-size:.7rem;box-shadow:none" data-sacar="${esc(x.id)}" data-nombre="${esc(x.nombre)}" aria-label="Sacar a ${esc(x.nombre)}" title="Sacar">✕</button></span>`).join("") || `<span class="nota-pie">Nadie conectado.</span>`}</div>`;
     return lista + (armado() ? hubHTML(true) + porSala : "");
   }
   function vivoHTML() {
@@ -693,7 +735,7 @@
   /* ---------- textos compartidos (guion, admin y staff) ---------- */
   function mensajes() {
     return {
-      ingreso: `Entren aquí, escriban su nombre y armen su equipo de dos: ${enlaceWeb()} . Cuando estén todos, el juego les dice a cada equipo su lado y la sala de ${videollamada()} a la que entrar. La tabla de puntos es privada: no se comparte pantalla.`,
+      ingreso: `Entren aquí, escriban su nombre y vean el video: ${enlaceWeb()} . Al terminar, marquen «Estoy listo». Cuando estén todos, arman equipo y el juego le dice a cada equipo su lado y la sala de ${videollamada()} a la que entrar. La tabla de puntos es privada: no se comparte pantalla.`,
       prep30: "Quedan 30 segundos de preparación. Al terminar, la web los pasa a la mesa.",
       faltan3: "Quedan 3 minutos. Si no cierran, cada parte se queda con su plan B.",
       ultimo: "Último minuto. Cierren el trato en la etapa Cerrar, o marquen «sin acuerdo» con la última propuesta que hubo.",
@@ -704,17 +746,55 @@
     const t = D.tiempos, M = mensajes();
     const tPrep = t.consigna, tNeg = tPrep + t.preparacion, tCierre = tNeg + t.negociacion, tRes = tCierre + t.cierre, tFin = tRes + t.debrief;
     return [
-      { en: 0, titulo: "Consigna", que: "Compartir la pantalla de Entrar. Pegar el mensaje de ingreso en el chat; ver cómo se arman los equipos desde este panel y acomodar a los que falten. Con todos en equipos, «Iniciar juego» reparte lados y salas y arranca este reloj. Leer el caso en dos frases y las cuatro reglas.", msg: M.ingreso },
+      { en: 0, titulo: "Consigna", que: "Pegar el mensaje de ingreso en el chat. Cada persona entra con su nombre, ve el video de introducción y marca «Estoy listo»; arriba se ve cuántos están listos. Con todos listos, «Abrir el armado de equipos» y acomodar a los que falten. Con todos en equipos, «Iniciar juego» reparte lados y salas y arranca este reloj. Leer el caso en dos frases y las cuatro reglas (el video ya las contó).", msg: M.ingreso },
       { en: tPrep - 15, titulo: "Abrir las salas", que: videollamada() + ": abrir las salas para grupos pequeños «Sala 1» a «Sala N», con «permitir que los participantes elijan sala»: cada quien entra a la sala que le dice la web; la lista «Quién va a cada sala» de este panel sirve para revisar y mover a quien se equivoque. Dejar de compartir pantalla. El staff entra a su sala y elige su número en la vista Staff." },
       { en: tPrep, titulo: "Preparación", que: "La web pasa a cada pareja a Prepararse: leen su ficha por pasos y llenan la hoja. El staff resuelve dudas de reglas, nunca de estrategia. En el tablero se ve quién no ha entrado." },
-      { en: tNeg - 30, titulo: "Aviso: 30 segundos", que: "Transmitir a todas las salas.", msg: M.prep30 },
+      { en: tNeg - 30, titulo: "Aviso: 30 segundos", que: "Sale solo, con sonido, en la pantalla de cada equipo. Decirlo por " + videollamada() + " solo si alguna sala no tiene la web abierta.", msg: M.prep30 },
       { en: tNeg, titulo: "Negociación", que: "La web abre la mesa en todas las salas. El staff lleva el acta de su sala: marca lo acordado y anota qué pasa. Vigilar que nadie muestre la tabla de puntos." },
-      { en: tCierre - 180, titulo: "Aviso: 3 minutos", que: "Transmitir a todas las salas.", msg: M.faltan3 },
-      { en: tCierre - 60, titulo: "Aviso: último minuto", que: "Transmitir a todas las salas.", msg: M.ultimo },
-      { en: tCierre, titulo: "Cerrar las salas", que: videollamada() + ": cerrar las salas (cuenta regresiva de 60 s). La web pasa a los equipos a Cerrar. El staff registra el cierre de su sala desde el acta. Transmitir el mensaje de cierre.", msg: M.cierre },
+      { en: tCierre - 180, titulo: "Aviso: 3 minutos", que: "Sale solo en la pantalla de cada equipo.", msg: M.faltan3 },
+      { en: tCierre - 60, titulo: "Aviso: último minuto", que: "Sale solo en la pantalla de cada equipo.", msg: M.ultimo },
+      { en: tCierre, titulo: "Cerrar las salas", que: videollamada() + ": cerrar las salas (cuenta regresiva de 60 s). La web pasa a los equipos a Cerrar y les muestra sola el aviso de cierre. El staff registra el cierre de su sala desde el acta.", msg: M.cierre },
       { en: tRes, titulo: "Resultados", que: "Compartir la pestaña Resultados: ya tiene el ranking con los cierres que registró cada sala; las que no cerraron cuentan como sin acuerdo. Nombrar la sala ganadora, Revelar los intereses (cada equipo ve su resultado en su pantalla) y lanzar las tres preguntas." },
       { en: tFin, titulo: "Fin", que: "Sigue la presentación de los seis puntos de la CEP." }
     ];
+  }
+  /* ---------- avisos automáticos en la sala ----------
+     Los avisos de la guía («Quedan 30 segundos de preparación», «Quedan 3 minutos», «Último minuto»,
+     «Se cierran las salas») salen solos en la pantalla de cada equipo (y del staff) cuando el reloj
+     del administrador llega a su momento, con sonido. Cada uno se muestra una vez por arranque del
+     reloj; quien recarga dentro de los 45 s siguientes lo ve igual, después ya no (no se repiten
+     avisos viejos). */
+  function avisosSala() {
+    const t = D.tiempos, M = mensajes(), tNeg = t.consigna + t.preparacion, tCierre = tNeg + t.negociacion;
+    return [
+      { id: "prep30", en: tNeg - 30, titulo: "Quedan 30 segundos", texto: M.prep30, tono: "oro" },
+      { id: "faltan3", en: tCierre - 180, titulo: "Quedan 3 minutos", texto: M.faltan3, tono: "oro" },
+      { id: "ultimo", en: tCierre - 60, titulo: "Último minuto", texto: M.ultimo, tono: "lava" },
+      { id: "cierre", en: tCierre + 3, titulo: "Se cierran las salas", texto: M.cierre, tono: "lava" }   // 3 s después de la tarjeta de cambio de etapa, para no encimarse
+    ];
+  }
+  let temporizadorAviso = null;
+  function mostrarAvisoSala(a) {
+    const z = document.getElementById("aviso-sala"); if (!z) return;
+    const hud = document.querySelector(".hud"); z.style.top = ((hud ? hud.offsetHeight : 60) + 10) + "px";
+    z.className = "aviso-sala " + (a.tono || "");
+    z.innerHTML = `${Iconos.svg(a.tono === "lava" ? "flag" : "clock")}<div><b>${esc(a.titulo)}</b><p>${esc(a.texto)}</p></div><span class="cerrar-aviso">Cerrar</span>`;
+    z.hidden = false; pitar(a.tono === "lava" ? 3 : 2);
+    clearTimeout(temporizadorAviso); temporizadorAviso = setTimeout(ocultarAvisoSala, 14000);
+  }
+  function ocultarAvisoSala() { const z = document.getElementById("aviso-sala"); if (!z || z.hidden) return; z.classList.add("saliendo"); setTimeout(() => { z.hidden = true; z.classList.remove("saliendo"); }, 360); }
+  function vigilarAvisos() {
+    if (["admin", "resultados", "guion"].includes(rutaActual)) return;   // estudiantes (con nombre) y la vista del staff
+    if (rutaActual !== "staff" && !estado.nombre) return;
+    let transcurrido = null, inicio = null;
+    if (RELOJES.admin.remoto !== undefined) { const fa = RELOJES.admin.fase(); if (fa) { transcurrido = fa.transcurrido; inicio = RELOJES.admin.remoto; } }
+    else { const fe = RELOJES.equipo.fase(); if (fe) { transcurrido = fe.transcurrido + D.tiempos.consigna; inicio = RELOJES.equipo.inicio; } }
+    if (transcurrido === null) return;
+    let vistos = leerS("avisosVistos", null); if (!vistos || vistos.inicio !== inicio) vistos = { inicio, ids: [] };
+    for (const a of avisosSala()) {
+      if (vistos.ids.includes(a.id) || transcurrido < a.en || transcurrido > a.en + 45) continue;
+      vistos.ids.push(a.id); guardarS("avisosVistos", vistos); mostrarAvisoSala(a); break;
+    }
   }
   const cuesHTML = () => cuesAdmin().map(c => `<div class="cue" data-en="${c.en}"><span class="cuando">${mmss(c.en)}</span><div><b>${esc(c.titulo)}</b><p>${esc(c.que)}</p>${c.msg ? `<div class="mensaje"><code>${esc(c.msg)}</code><button type="button" class="boton chico" data-copiar="${esc(c.msg)}">Copiar</button></div>` : ""}</div></div>`).join("");
   function actualizarCues(fa) {
@@ -892,7 +972,12 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
         return `
 <section class="pantalla">
   ${cabecera}
-  <div class="panel menta"><span class="ojo">Pre-sala</span><h2>Ya estás dentro</h2><p>Esperá a que entren todos. Cuando el administrador vea cuántos somos, abre el armado de equipos y elegís con quién jugar; el tamaño de los equipos sale de la cantidad de gente. Mientras tanto, mirá cómo se juega.</p><div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>Esperando al administrador…</p></div></div>
+  <div class="panel menta pre-sala"><span class="ojo">Pre-sala</span><h2>Ya estás dentro</h2>
+    <p>Mientras entran todos, mirá el video: cuenta el caso y cómo se juega. Al terminar se habilita <b>«Estoy listo»</b>; cuando todos estén listos, el administrador abre el armado de equipos y elegís con quién jugar.</p>
+    ${videoIntroHTML()}
+    <div class="botones listo-fila">${estado.listo ? `<span class="boton menta grande" aria-disabled="true">${Iconos.svg("check")} Listo</span>` : `<button type="button" class="boton menta grande" id="btn-listo" ${estado.videoVisto ? "" : "disabled"}>${Iconos.svg("check")} Estoy listo</button>`}<span class="nota-pie" id="listo-nota">${notaListo()}</span></div>
+    <div class="espera-linea" id="listos"><span class="reloj-arena" aria-hidden="true"></span><p>${listosTexto()}</p></div>
+  </div>
 </section>${caso}`;
       }
       return `
@@ -1336,7 +1421,10 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
       const final = fa && (fa.id === "debrief" || fa.id === "fin");
       return `<div class="cabecera"><div><span class="ojo">En marcha</span><h2>${fa ? esc(fa.nombre) + " · " + mmss(fa.restante) : "Juego iniciado"}</h2><p class="nota-pie">${final ? "Se acabó el tiempo. Resultados ya tiene el ranking. Cuando lo hayan comentado, revelá los intereses: cada equipo ve en su pantalla los puntos del otro lado, su índice y su puesto." : salasActivas() + " salas. Las pantallas de los equipos van con este reloj: «Siguiente fase» salta, «Reiniciar» lo detiene. Si alguien entra tarde, «Acomodar a los que faltan» lo mete de tercero en un equipo con sala."}</p></div><div class="ficha-identidad">${conteo}<div class="botones">${final ? `<button type="button" class="boton ${revelado() ? "fantasma" : "menta grande"}" id="btn-revelar">${revelado() ? "Ocultar la revelación" : "Revelar los intereses a los equipos"}</button><a class="boton fantasma chico" href="#resultados">Ver Resultados</a>` : ""}${sueltos ? `<button type="button" class="boton chico oro" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}</div></div></div>`;
     }
-    if (!armado()) return `<div class="cabecera"><div><span class="ojo">Pre-sala</span><h2>Esperando a que entren todos</h2><p class="nota-pie">Cada persona escribe su nombre y espera. Cuando estén todos, este botón fija el plan con la gente que hay (${esc(planTexto(planPara(j.length)))}) y les abre el hub para armar equipos de ese tamaño.</p></div><div class="ficha-identidad">${conteo}<button type="button" class="boton oro grande" id="btn-abrir-armado" ${j.length >= 2 ? "" : "disabled"}>Abrir el armado de equipos</button></div></div>`;
+    if (!armado()) {
+      const listos = listosDe(j), todos = j.length >= 2 && listos >= j.length;
+      return `<div class="cabecera ${todos ? "todos-listos" : ""}"><div><span class="ojo">Pre-sala</span><h2>${todos ? "Todos listos" : "Esperando a que entren todos"}</h2><p class="nota-pie">Cada persona escribe su nombre, ve el video de introducción y marca «Estoy listo» al terminar. ${todos ? "Ya marcaron todos: este botón" : "Cuando estén todos, este botón"} fija el plan con la gente que hay (${esc(planTexto(planPara(j.length)))}) y les abre el hub para armar equipos de ese tamaño.</p></div><div class="ficha-identidad">${conteo}${enVivo() ? `<span class="conectados listos-chip ${todos ? "ok" : ""}">${Iconos.svg("check")}<span>${listos} de ${j.length} ${j.length === 1 ? "listo" : "listos"}</span></span>` : ""}<button type="button" class="boton oro grande" id="btn-abrir-armado" ${j.length >= 2 ? "" : "disabled"}>Abrir el armado de equipos</button></div>`;
+    }
     const cambio = armado().P !== j.length ? `<p class="nota-pie" style="color:var(--aviso)">El plan se fijó con ${armado().P} y ahora hay ${j.length}. «Recalcular» rehace el plan con los que hay; si no, al iniciar se acomoda a quien sobre o falte.</p>` : "";
     return `<div class="cabecera"><div><span class="ojo">Armando equipos</span><h2>Iniciar el juego</h2><p class="nota-pie">${esc(planTexto(armado()))} Este botón completa el reparto (los equipos armados se respetan; quien sobra o falta se acomoda), le asigna a cada equipo un lado y una sala, se lo muestra en su pantalla con la sala de ${esc(videollamada())} a la que debe entrar, y arranca el reloj completo.</p>${cambio}</div><div class="ficha-identidad">${conteo}<div class="botones">${armado().P !== j.length ? `<button type="button" class="boton fantasma chico" id="btn-abrir-armado">Recalcular con ${j.length}</button>` : ""}${sueltos ? `<button type="button" class="boton fantasma" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}<button type="button" class="boton oro grande" id="btn-iniciar-juego" ${j.length >= 2 ? "" : "disabled"}>Iniciar juego</button></div></div></div>`;
   }
@@ -1613,6 +1701,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
         if (!(seleccion.sala && seleccion.lado)) { avisar("Tocá el lado de tu sala en el tablero."); return; }
         sentarse(seleccion.sala, seleccion.lado, estado.rol); break;
       }
+      case "btn-listo": { estado.listo = Date.now(); guardarS("listo", estado.listo); anunciar(); render(); avisar("Listo. Cuando estén todos, el administrador abre los equipos."); break; }
       case "btn-cambiar-nombre": { if (estado.sala) despedirse(estado.sala); Sync.fijar("jugadores/" + idPestana, null); estado.nombre = ""; guardarS("nombre", null); render(); break; }
       case "btn-salir": salirDeSala(); break;
       case "btn-cerrar": case "btn-cerrar-2": { const letras = letrasActuales(); if (!letras.every(Boolean)) return; cerrarCon({ letras }); break; }
@@ -1698,7 +1787,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); if (rutaActual === "resultados") calcular(); });
   let asignacionVista = null;
   Sync.escuchar("jugadores", v => {
-    vivo.jugadores = v || {}; pintarConectados(); if (rutaActual === "admin") pintarVivo(); if (rutaActual === "entrar") pintarHub();
+    vivo.jugadores = v || {}; pintarConectados(); if (rutaActual === "admin") pintarVivo(); if (rutaActual === "entrar") { pintarHub(); pintarListos(); }
     const yo = vivo.jugadores[idPestana];
     if (yo && yo.expulsado && yo.expulsado !== estado.expulsionVista && !VISTAS_FACILITADOR.includes(rutaActual)) { estado.expulsionVista = yo.expulsado; guardarS("expulsionVista", yo.expulsado); expulsar("El administrador te sacó de la actividad."); return; }
     const mia = vivo.jugadores[idPestana] && vivo.jugadores[idPestana].asignacion;
@@ -1714,6 +1803,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   });
   if (estado.nombre) anunciar();
   window.addEventListener("hashchange", render);
+  document.getElementById("aviso-sala").addEventListener("click", ocultarAvisoSala);
   window.addEventListener("pagehide", despedidaInmediata);
   render();
 

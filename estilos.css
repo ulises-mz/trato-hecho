@@ -422,6 +422,18 @@ textarea { min-height: 70px; resize: vertical; }
 .espera .reloj-arena { width: 54px; height: 54px; border: 3px solid var(--borde); border-radius: 50%; border-top-color: var(--oro); animation: girar 1.2s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }
 
+/* ---------- avisos automáticos en la sala (los dispara el reloj del administrador) ---------- */
+.aviso-sala { position: fixed; left: 50%; top: 74px; transform: translateX(-50%); z-index: 30; width: min(720px, calc(100vw - 32px)); display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 16px; border: 3px solid var(--borde); border-radius: 18px; background: var(--panel); box-shadow: var(--sombra-dura); cursor: pointer; animation: caer-aviso .45s cubic-bezier(.2, .9, .3, 1.2) both; }
+.aviso-sala.oro { background: var(--acento-suave); }
+.aviso-sala.lava { background: color-mix(in srgb, var(--lava) 14%, var(--panel)); border-color: var(--lava); }
+.aviso-sala .ico { width: 28px; height: 28px; flex: 0 0 auto; }
+.aviso-sala b { font-family: var(--titulo); font-size: 1rem; display: block; }
+.aviso-sala p { font-weight: 600; color: var(--tinta-2); font-size: .95rem; }
+.aviso-sala .cerrar-aviso { font-size: .78rem; font-weight: 800; color: var(--tinta-3); text-transform: uppercase; letter-spacing: .04em; }
+.aviso-sala.saliendo { animation: subir-aviso .35s both; }
+@keyframes caer-aviso { from { transform: translate(-50%, -30px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@keyframes subir-aviso { to { transform: translate(-50%, -30px); opacity: 0; } }
+
 /* ---------- transición entre etapas ---------- */
 .transicion { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: color-mix(in srgb, var(--papel) 88%, transparent); backdrop-filter: blur(6px); animation: fundir .3s both; }
 .transicion.saliendo { animation: fundir .4s reverse both; }
@@ -622,6 +634,16 @@ td.max { font-weight: 800; color: var(--menta-2); }
 .espera-linea .reloj-arena { width: 34px; height: 34px; border: 3px solid var(--borde); border-radius: 50%; border-top-color: var(--oro); animation: girar 1.2s linear infinite; flex: 0 0 auto; }
 .espera-linea p { font-weight: 600; color: var(--tinta-2); }
 #arranque .ficha-identidad { align-items: flex-end; text-align: right; }
+/* ---------- pre-sala: video de introducción y «Estoy listo» ---------- */
+.video-intro { margin-top: 12px; }
+.video-intro video { display: block; width: 100%; aspect-ratio: 16 / 9; border: 3px solid var(--borde); border-radius: 18px; background: #0b0a1a; box-shadow: var(--sombra); }
+.listo-fila { align-items: center; margin-top: 12px; }
+.listo-fila .nota-pie { flex: 1 1 200px; }
+.listo-marca { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--borde); background: var(--menta); color: var(--tinta); margin-left: -2px; }
+.listo-marca .ico { width: 12px; height: 12px; }
+.listos-chip .ico { width: 18px; height: 18px; }
+.listos-chip.ok { background: var(--menta); }
+.cabecera.todos-listos h2 { color: var(--felt); }
 /* ---------- hub de equipos ---------- */
 .equipos-hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 10px; }
 .equipo-slot { background: var(--panel); border: 2px solid var(--borde); border-radius: var(--radio); padding: 12px; display: grid; gap: 10px; box-shadow: var(--sombra-chica); align-content: start; }
