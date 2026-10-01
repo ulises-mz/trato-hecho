@@ -25,7 +25,7 @@ ganar-ganar que decide qué sala negoció mejor.
 | Consigna | 1 min | Se lee el caso y las cuatro reglas; «Iniciar juego» reparte lados y salas a los equipos ya armados |
 | Preparación | 4 min | Cada lado lee su ficha privada por pasos y llena la hoja de preparación |
 | Negociación | 10 min | Hablan y marcan las opciones en la mesa; el termómetro muestra solo sus puntos |
-| Cierre | 1 min | Cada equipo registra el cierre en la web: trato hecho o sin acuerdo. El código (`S3-BEDCD`) es solo respaldo |
+| Cierre | 1 min | Cada equipo registra el cierre en la web: «trato hecho» solo se habilita si las propuestas de los dos equipos coinciden; si no, «sin acuerdo». El código (`S3-BEDCD`) es solo respaldo |
 | Resultados | 4 min | El tablero se llena solo, rankea, grafica y revela los intereses de los dos lados |
 
 **20 minutos en total.** El guion minuto a minuto, los mensajes para pegar en el chat
@@ -76,7 +76,7 @@ candado.
 | **Entrar** | Login con el nombre (desde ahí cuenta como conectado), pre-sala con el video de introducción (al terminarlo se habilita «Estoy listo»; el administrador ve el conteo en vivo y cuántos están listos) hasta que abre el armado, y el hub de equipos con el plan fijado con esa cantidad. Las salas son fijas (`config.salas`, una por staff) y el tamaño de los equipos se ajusta a la gente: con P personas, min(salas, P/4) salas, dos equipos por sala, de ⌊P/T⌋ o ⌊P/T⌋+1 personas. Cuando están todos, «Iniciar juego» respeta los equipos armados, acomoda a quien sobra o falta, asigna a cada par de equipos una sala y los lados, sienta a cada persona y le muestra a qué sala de Zoom entrar; arranca el reloj. Sin tablero en vivo queda la elección manual de sala y lado |
 | **Prepararse** | La ficha privada en seis pasos: el caso y las reglas, quiénes son y su posición, lo que les importa, la tabla de puntos y el plan B, la hoja de preparación y su rol. La primera vez se abre el tutorial animado |
 | **Negociar** | La escena de la sala (`escena.js`): los cuatro sentados con nombre y rol, quién tiene la palabra, la última oferta de cada lado como burbuja y el contrato con lo marcado. Debajo, la ronda, los cinco temas, el termómetro, la propuesta, las misiones, los apuntes y «Consultar mi ficha» |
-| **Cerrar** | La propuesta final contra el plan B. «Trato hecho» hace que los voceros se den la mano; «Sin acuerdo» los levanta de la mesa. Sale el código de la sala |
+| **Cerrar** | La propuesta final contra el plan B y la comparación con la propuesta del otro equipo, tema por tema. «Trato hecho» solo se habilita cuando las dos coinciden, y hace que los voceros se den la mano; «Sin acuerdo» los levanta de la mesa. Sale el código de la sala |
 | **Resultado** | Antes de la revelación, el propio cierre y las preguntas para conversar; cuando el administrador revela, los puntos de los dos lados, el índice, el puesto entre las salas, lo que había del otro lado y las claves |
 
 ## Roles y tablero en vivo
@@ -86,7 +86,7 @@ candado.
 | Estudiantes | Inicio, Mi ficha, Mesa | Escriben su nombre y entran desde el **lobby**: las salas con sus asientos de agencia y cliente, donde se ve llegar a los demás en tiempo real (avatar con iniciales y rol). La ficha es un dossier por pestañas (Resumen, Intereses, Puntos, Guion, Preparación) con la franja de quién está en cada lado; la mesa funciona como apuntes: termómetro de puntos contra el plan B, propuesta sobre la mesa, registro de ofertas (nuestras y de ellos) y notas rápidas |
 | Vocero / Analista | Mi ficha | En cada pareja uno habla y el otro lleva la cuenta. El vocero abre en la pestaña Guion (qué decir, qué preguntar, qué defender y qué cambiar); el analista abre en Puntos. Quien está solo elige «Los dos» |
 | Administrador | `#admin` | Reloj de las cinco fases que manda sobre los relojes de los equipos, avisos que se iluminan cuando toca y que la web muestra sola, con sonido, en la pantalla de cada equipo (30 segundos de preparación, 3 minutos, último minuto, cierre de salas), tablero de salas en vivo, reinicio de sesión |
-| Staff | `#staff` | Escribano de su sala: elige la sala, marca en el acta lo que se va acordando, anota qué pasa con un toque y registra el cierre (trato hecho o sin acuerdo). Recibe los mismos avisos automáticos que los equipos. Debajo, todas las salas en vivo |
+| Staff | `#staff` | Verificador de su sala: elige la sala y ve las dos propuestas en vivo, tema por tema (verde donde coinciden, rojo donde no), con el veredicto arriba y qué hacer en cada fase. No lleva acta (queda como respaldo opcional): la web solo habilita «Trato hecho» cuando las dos propuestas coinciden. Recibe los mismos avisos automáticos que los equipos. Debajo, todas las salas en vivo |
 | Resultados | `#resultados` | Carga los códigos en vivo o el chat pegado, rankea, grafica, revela y muestra los apuntes del staff de cada sala |
 
 Admin, Staff, Resultados y Guion piden la **clave** de `config.js`
@@ -190,7 +190,7 @@ sesiones/<sesion>/config/reloj         inicio del reloj del administrador
 sesiones/<sesion>/salas/<n>/agencia    { entrado, fase, propuesta, puntos, prep, actualizado }
 sesiones/<sesion>/salas/<n>/cliente    igual
 sesiones/<sesion>/salas/<n>/cierre     { codigo, por, ts }        por: agencia, cliente o staff
-sesiones/<sesion>/salas/<n>/acta       { temas, notas, actualizado } lo que marca el staff
+sesiones/<sesion>/salas/<n>/acta       { temas, notas, actualizado } respaldo opcional del staff
 sesiones/<sesion>/salas/<n>/gente/<id> { nombre, lado, rol, entrado, actualizado } quién está (por pestaña)
 ```
 

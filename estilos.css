@@ -434,6 +434,22 @@ textarea { min-height: 70px; resize: vertical; }
 @keyframes caer-aviso { from { transform: translate(-50%, -30px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 @keyframes subir-aviso { to { transform: translate(-50%, -30px); opacity: 0; } }
 
+/* ---------- verificación: las dos propuestas de la sala, tema por tema ---------- */
+.verificacion { display: grid; gap: 10px; margin-top: 10px; }
+.verif-tabla { display: grid; gap: 6px; }
+.verif-fila { display: grid; grid-template-columns: minmax(0, 1fr) 64px 64px 28px; gap: 8px; align-items: center; padding: 8px 12px; border-radius: var(--radio-s); border: 2px solid var(--linea); background: var(--panel); }
+.verif-fila.cab { border: 0; background: none; padding: 0 12px; font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--tinta-3); }
+.verif-fila.cab .col-lado { text-align: center; line-height: 1.1; }
+.verif-fila .tema { font-weight: 700; }
+.verif-fila .letra-v { font-family: var(--mono); font-weight: 800; text-align: center; border-radius: 999px; padding: 4px 0; border: 2px solid var(--borde); background: var(--papel); }
+.verif-fila .letra-v.agencia { color: var(--orbita); } .verif-fila .letra-v.cliente { color: var(--volcan-2); }
+.verif-fila.igual { border-color: var(--menta-2); background: var(--menta-suave); }
+.verif-fila.distinta { border-color: var(--lava); background: var(--lava-suave); }
+.verif-fila .marca { display: grid; place-items: center; font-weight: 900; font-size: 1.1rem; color: var(--lava); }
+.verif-fila.igual .marca { color: var(--menta-2); }
+.verif-fila .marca .ico { width: 18px; height: 18px; }
+@media (max-width: 480px) { .verif-fila { grid-template-columns: minmax(0, 1fr) 48px 48px 22px; padding: 8px; } }
+
 /* ---------- transición entre etapas ---------- */
 .transicion { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: color-mix(in srgb, var(--papel) 88%, transparent); backdrop-filter: blur(6px); animation: fundir .3s both; }
 .transicion.saliendo { animation: fundir .4s reverse both; }

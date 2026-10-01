@@ -395,7 +395,7 @@
     document.body.classList.toggle("presion", estudiante && !!f && f.id === "negociacion" && f.restante <= 60 && !estado.cerrado);
     document.body.classList.toggle("presion-suave", estudiante && !!f && f.id === "negociacion" && f.restante > 60 && f.restante <= 150 && !estado.cerrado);
     vigilarEtapa(); vigilarAvisos();
-    if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); }
+    if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); pintarVerificacion(); }
     if (rutaActual === "entrar" && dentro() && !bloqueada("preparar") && document.querySelector(".espera-linea")) render();
     if (rutaActual === "entrar") { engancharVideo(); if (tics % 4 === 0) pintarListos(); }
     if (++tics % 10 === 0) { pintarVivo(); pintarPresencia(); pintarConectados(); if (rutaActual === "entrar") pintarLobby(); if (estado.nombre && tics % 30 === 0) { anunciar(); if (dentro() && (rutaActual === "preparar" || rutaActual === "negociar" || rutaActual === "cerrar")) reportar({}); } }
@@ -556,6 +556,62 @@
     return { clave: "ficha", texto: "Preparándose" };
   }
   const FASE_TEXTO = { sentado: "sentado, esperando", ficha: "se prepara", mesa: "en la mesa", cerrado: "cerró" };
+  /* ---------- verificación: las dos propuestas de una sala, tema por tema ----------
+     «Trato hecho» solo se habilita cuando las dos propuestas son idénticas y completas, y el staff ve
+     lo mismo en su pantalla: ya no lleva acta, verifica. Sin tablero en vivo no hay con qué comparar
+     y se confía en los equipos. */
+  function verificacionDe(n) {
+    const s = (vivo.salas && vivo.salas[n]) || {};
+    const letrasDe = l => { const p = s[l] && s[l].propuesta; return D.temas.map((t, i) => (p && p[i] && p[i] !== "?") ? p[i] : null); };
+    const L = { agencia: letrasDe("agencia"), cliente: letrasDe("cliente") };
+    const filas = D.temas.map((t, i) => ({ tema: t.nombre, agencia: L.agencia[i], cliente: L.cliente[i], igual: !!(L.agencia[i] && L.cliente[i] && L.agencia[i] === L.cliente[i]) }));
+    const iguales = filas.filter(f => f.igual).length;
+    return { filas, iguales, sinPropuesta: LADOS.filter(l => L[l].every(x => !x)), difieren: filas.filter(f => f.agencia && f.cliente && !f.igual).map(f => f.tema), pendientes: filas.filter(f => !f.agencia || !f.cliente).map(f => f.tema), coinciden: iguales === D.temas.length, cierre: s.cierre || null };
+  }
+  function veredictoDe(v) {
+    if (v.cierre) return v.cierre.codigo.includes("SIN") ? { clase: "mal", texto: "Cerrada sin acuerdo" } : { clase: "ok", texto: "Cerrada: trato hecho" };
+    if (v.sinPropuesta.length === 2) return { clase: "neutro", texto: "Todavía no hay propuestas sobre la mesa" };
+    if (v.sinPropuesta.length === 1) return { clase: "neutro", texto: "Falta la propuesta de " + D.lados[v.sinPropuesta[0]].nombre };
+    if (v.coinciden) return { clase: "ok", texto: "Coinciden en los cinco temas: pueden cerrar" };
+    const partes = []; if (v.difieren.length) partes.push("difieren en " + v.difieren.join(", ")); if (v.pendientes.length) partes.push("sin marcar: " + v.pendientes.join(", "));
+    return { clase: "aviso", texto: `Coinciden ${v.iguales} de ${D.temas.length} · ${partes.join(" · ")}` };
+  }
+  function verificacionHTML(n, miLado) {
+    const v = verificacionDe(n), ver = veredictoDe(v);
+    const col = l => `<span class="col-lado acento-${l}">${esc(D.lados[l].nombre)}${miLado === l ? " · ustedes" : ""}</span>`;
+    return `<div class="verificacion ${ver.clase}"><div class="verif-cab"><span class="estado ${ver.clase}">${esc(ver.texto)}</span></div>
+<div class="verif-tabla"><div class="verif-fila cab"><span></span>${col("agencia")}${col("cliente")}<span></span></div>${v.filas.map(f => `<div class="verif-fila ${f.igual ? "igual" : (f.agencia && f.cliente ? "distinta" : "pendiente")}"><span class="tema">${esc(f.tema)}</span><span class="letra-v agencia">${f.agencia || "–"}</span><span class="letra-v cliente">${f.cliente || "–"}</span><span class="marca">${f.igual ? Iconos.svg("check") : (f.agencia && f.cliente ? "≠" : "")}</span></div>`).join("")}</div></div>`;
+  }
+  const puedeCerrarAhora = () => !enVivo() || verificacionDe(estado.sala).coinciden;
+  function notaCerrar() {
+    if (!letrasActuales().every(Boolean)) return "Para «trato hecho» hacen falta los cinco temas marcados.";
+    if (!puedeCerrarAhora()) return "Las propuestas de los dos equipos no coinciden todavía: revisen con el otro equipo los temas marcados en rojo, o registren «sin acuerdo».";
+    return "Las dos propuestas coinciden. Si las dos partes dicen «trato hecho», confírmenlo.";
+  }
+  function pintarVerificacion() {
+    if (!enVivo()) return;
+    const z = document.getElementById("verificacion"); if (z && estado.sala) { const h = verificacionHTML(estado.sala, estado.lado); const c = z.querySelector(".verificacion"); if (c && c.outerHTML !== h) c.outerHTML = h; }
+    if (estado.sala && !estado.cerrado) {
+      const ok = letrasActuales().every(Boolean) && puedeCerrarAhora();
+      ["btn-cerrar", "btn-cerrar-2"].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = !ok; });
+      const nota = document.getElementById("nota-cerrar"); if (nota) { const t = notaCerrar(); if (nota.textContent !== t) nota.textContent = t; }
+    }
+    const st = document.getElementById("verif-staff"); if (st) { const h = verificacionHTML(estado.staffSala, null); const c = st.querySelector(".verificacion"); if (c && c.outerHTML !== h) c.outerHTML = h; const q = document.getElementById("staff-ahora"); if (q) { const h2 = staffAhoraHTML(); if (q.innerHTML !== h2) q.innerHTML = h2; } }
+  }
+  function staffAhoraHTML() {
+    const f = faseActual(), vc = videollamada();
+    const pasos = {
+      espera: ["Elija arriba el número de su sala: todo lo que ve aquí es de esa sala.", "Cuando el administrador abra las salas en " + vc + ", entre a la suya."],
+      cuenta: ["Entre a su sala de " + vc + ". Los equipos están recibiendo su sala y su lado."],
+      consigna: ["Confirme que en su sala de " + vc + " estén los dos equipos: agencia y cliente."],
+      preparacion: ["Los equipos leen su ficha privada. Dudas de reglas sí; de estrategia, nunca.", "Nadie comparte pantalla ni lee sus puntos en voz alta."],
+      negociacion: ["Mire las dos propuestas: verde donde coinciden, rojo donde no. No intervenga en el contenido.", "Si preguntan «¿qué nos conviene?»: «pregúntenle a la otra parte para qué lo necesita».", "Los avisos de tiempo salen solos en todas las pantallas."],
+      cierre: ["«Trato hecho» solo se habilita si las dos propuestas son idénticas. Si no coinciden, que revisen los temas en rojo o registren «Sin acuerdo».", "Antes de volver a la sala principal, confirme que la sala quede cerrada."],
+      debrief: ["Sala cerrada o fuera de tiempo. Vuelva a la sala principal para los resultados."],
+      fin: ["Vuelva a la sala principal para los resultados."]
+    };
+    return `<span class="ojo">Qué hace el staff ahora</span><ul class="lista" style="margin-top:6px">${(pasos[f] || pasos.espera).map(p => `<li>${esc(p)}</li>`).join("")}</ul>`;
+  }
   function actaDe(n) {
     const remota = enVivo() && vivo.salas && vivo.salas[n] && vivo.salas[n].acta;
     const local = estado.actas[n];
@@ -750,10 +806,10 @@
       { en: tPrep - 15, titulo: "Abrir las salas", que: videollamada() + ": abrir las salas para grupos pequeños «Sala 1» a «Sala N», con «permitir que los participantes elijan sala»: cada quien entra a la sala que le dice la web; la lista «Quién va a cada sala» de este panel sirve para revisar y mover a quien se equivoque. Dejar de compartir pantalla. El staff entra a su sala y elige su número en la vista Staff." },
       { en: tPrep, titulo: "Preparación", que: "La web pasa a cada pareja a Prepararse: leen su ficha por pasos y llenan la hoja. El staff resuelve dudas de reglas, nunca de estrategia. En el tablero se ve quién no ha entrado." },
       { en: tNeg - 30, titulo: "Aviso: 30 segundos", que: "Sale solo, con sonido, en la pantalla de cada equipo. Decirlo por " + videollamada() + " solo si alguna sala no tiene la web abierta.", msg: M.prep30 },
-      { en: tNeg, titulo: "Negociación", que: "La web abre la mesa en todas las salas. El staff lleva el acta de su sala: marca lo acordado y anota qué pasa. Vigilar que nadie muestre la tabla de puntos." },
+      { en: tNeg, titulo: "Negociación", que: "La web abre la mesa en todas las salas. El staff vigila en su pantalla que las propuestas de los dos equipos coincidan, sin meterse en el contenido. Vigilar que nadie muestre la tabla de puntos." },
       { en: tCierre - 180, titulo: "Aviso: 3 minutos", que: "Sale solo en la pantalla de cada equipo.", msg: M.faltan3 },
       { en: tCierre - 60, titulo: "Aviso: último minuto", que: "Sale solo en la pantalla de cada equipo.", msg: M.ultimo },
-      { en: tCierre, titulo: "Cerrar las salas", que: videollamada() + ": cerrar las salas (cuenta regresiva de 60 s). La web pasa a los equipos a Cerrar y les muestra sola el aviso de cierre. El staff registra el cierre de su sala desde el acta.", msg: M.cierre },
+      { en: tCierre, titulo: "Cerrar las salas", que: videollamada() + ": cerrar las salas (cuenta regresiva de 60 s). La web pasa a los equipos a Cerrar y les muestra sola el aviso de cierre. «Trato hecho» solo se habilita si las dos propuestas coinciden; el staff lo verifica en su pantalla.", msg: M.cierre },
       { en: tRes, titulo: "Resultados", que: "Compartir la pestaña Resultados: ya tiene el ranking con los cierres que registró cada sala; las que no cerraron cuentan como sin acuerdo. Nombrar la sala ganadora, Revelar los intereses (cada equipo ve su resultado en su pantalla) y lanzar las tres preguntas." },
       { en: tFin, titulo: "Fin", que: "Sigue la presentación de los seis puntos de la CEP." }
     ];
@@ -1146,10 +1202,11 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     <div class="panel"><span class="ojo">Propuesta final</span><div class="cierre-resumen" style="margin-top:8px">${D.temas.map((t, i) => { const o = letras[i] ? opcionDe(i, letras[i]) : null; return `<div class="cierre-fila"><div><span class="nota-pie">${esc(t.nombre)}</span><br>${o ? `<b>${esc(o.texto)}</b>` : `<span class="nota-pie">sin acordar</span>`}</div>${o ? `<span class="pts">+${o[l]}</span>` : ""}</div>`; }).join("")}</div>
       <div class="botones" style="margin-top:12px"><a class="boton fantasma chico" href="#negociar">← Cambiar algo en la mesa</a></div></div>
     <div class="panel termometro" id="termometro">${termometroHTML(l, suma, completos, letras.filter(x => !x).length)}
-      <div class="botones" style="margin-top:14px"><button type="button" class="boton menta grande" id="btn-cerrar" ${completos ? "" : "disabled"}>${ico("handshake")} Trato hecho</button><button type="button" class="boton lava" id="btn-sin">${ico("exit")} Sin acuerdo</button></div>
-      ${completos ? "" : `<p class="nota-pie" style="margin-top:8px">Para «trato hecho» hacen falta los cinco temas marcados.</p>`}
+      <div class="botones" style="margin-top:14px"><button type="button" class="boton menta grande" id="btn-cerrar" ${completos && puedeCerrarAhora() ? "" : "disabled"}>${ico("handshake")} Trato hecho</button><button type="button" class="boton lava" id="btn-sin">${ico("exit")} Sin acuerdo</button></div>
+      <p class="nota-pie" id="nota-cerrar" style="margin-top:8px">${esc(notaCerrar())}</p>
     </div>
   </div>
+  ${enVivo() ? `<div class="panel" id="verificacion"><span class="ojo">Verificación con el otro equipo</span>${verificacionHTML(estado.sala, l)}<p class="nota-pie" style="margin-top:8px">«Trato hecho» se habilita cuando las dos propuestas son idénticas. El staff de la sala ve esta misma comparación.</p></div>` : ""}
   <div class="panel panel-sin lava" id="panel-sin" hidden>
     <h3>Registrar «sin acuerdo»</h3>
     <p>Cada parte se queda con su plan B. Para evaluar la sala, anoten qué pasó.</p>
@@ -1214,7 +1271,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     const term = document.getElementById("termometro"); if (term && rutaActual === "negociar") term.innerHTML = termometroHTML(l, suma, completos, letras.filter(x => !x).length);
     if (document.getElementById("laboratorio")) pintarLaboratorio();
     const res = document.getElementById("propuesta-resumen"); if (res) res.innerHTML = propuestaResumenHTML(l);
-    ["btn-cerrar", "btn-cerrar-2"].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = !completos; });
+    ["btn-cerrar", "btn-cerrar-2"].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = !(completos && puedeCerrarAhora()); });
     const total = document.getElementById("calc-total"), ver = document.getElementById("calc-veredicto");
     if (total) {
       total.textContent = suma;
@@ -1475,12 +1532,17 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     return `
 <section class="seccion">
   <div class="cabecera">
-    <div><span class="ojo">Staff · escribano de la sala</span><h1>Mi sala</h1><p class="entrada">Usted lleva el acta: marca lo que se va acordando, anota qué pasa y registra el cierre. Los estudiantes no ven el acta; ven su propia mesa.</p></div>
+    <div><span class="ojo">Staff · verificador de la sala</span><h1>Mi sala</h1><p class="entrada">Usted no negocia: verifica. Aquí ve las dos propuestas de su sala en vivo, tema por tema; la web solo habilita «Trato hecho» cuando coinciden. Resuelva dudas de reglas, nunca de estrategia.</p><div class="botones" style="margin-top:8px"><a class="boton fantasma chico" id="enlace-video-staff" href="video/staff.mp4" target="_blank" rel="noopener" hidden>Ver el video del staff (2 min)</a></div></div>
     <div class="reloj" data-reloj="admin"><span class="fase-actual">Esperando al administrador</span><span class="tiempo">${mmss(FASES_ADMIN[0].dur)}</span></div>
   </div>
   <div class="salas-chips">${lista.map(n => `<button type="button" class="chip" data-staff-sala="${n}" aria-pressed="${estado.staffSala === n}"><span class="letra">${n}</span><span>Sala ${n}</span></button>`).join("")}</div>
 </section>
-<section class="seccion" id="acta">${actaHTML()}</section>
+<section class="seccion" id="verif-staff">
+  <div class="cabecera"><div><span class="ojo">Sala ${estado.staffSala}</span><h2>Las dos propuestas, en vivo</h2><p class="nota-pie">${LADOS.map(l => `<span class="acento-${l}"><b>${esc(D.lados[l].nombre)}:</b> ${genteDe(estado.staffSala, l).map(p => esc(p.nombre)).join(", ") || "nadie todavía"}</span>`).join(" · ")}</p></div></div>
+  ${verificacionHTML(estado.staffSala, null)}
+  <div class="panel suave" id="staff-ahora" style="margin-top:12px">${staffAhoraHTML()}</div>
+</section>
+<section class="seccion"><details class="consultar"><summary>Acta y apuntes (opcional, respaldo)</summary><p class="nota-pie" style="margin:8px 0">Ya no hace falta llevar acta: los equipos marcan su propuesta en la web y aquí se ve la comparación. Esto queda por si el tablero falla o quiere anotar algo.</p><div id="acta">${actaHTML()}</div></details></section>
 <section class="seccion"><h2>Todas las salas</h2><div id="vivo">${vivoHTML()}</div></section>
 <section class="seccion"><h2>Qué toca ahora</h2><div class="cues">${cuesHTML()}</div></section>
 <section class="seccion panel suave"><h3>Reglas que vigila el staff</h3><ul class="lista">${D.contexto.reglas.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p class="nota-pie">Dudas de reglas sí; de estrategia no. Si una sala pregunta «¿qué nos conviene?», la respuesta es «pregúntenle a la otra parte para qué lo necesita».</p></section>`;
@@ -1678,7 +1740,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
       const letras = letrasActuales();
       cerrarCon({ letras: null, ultima: letras.every(Boolean) ? letras : null, quien: b.dataset.quien || null }); return;
     }
-    if (b.dataset.staffSala) { estado.staffSala = parseInt(b.dataset.staffSala, 10); guardar("staffSala", estado.staffSala); document.querySelectorAll("[data-staff-sala]").forEach(x => x.setAttribute("aria-pressed", String(x === b))); pintarActa(); return; }
+    if (b.dataset.staffSala) { estado.staffSala = parseInt(b.dataset.staffSala, 10); guardar("staffSala", estado.staffSala); render(); return; }
     if (b.dataset.actaTema !== undefined) {
       const n = estado.staffSala, acta = actaDe(n), i = b.dataset.actaTema;
       if (acta.temas[i] === b.dataset.letra) delete acta.temas[i]; else acta.temas[i] = b.dataset.letra;
@@ -1704,7 +1766,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
       case "btn-listo": { estado.listo = Date.now(); guardarS("listo", estado.listo); anunciar(); render(); avisar("Listo. Cuando estén todos, el administrador abre los equipos."); break; }
       case "btn-cambiar-nombre": { if (estado.sala) despedirse(estado.sala); Sync.fijar("jugadores/" + idPestana, null); estado.nombre = ""; guardarS("nombre", null); render(); break; }
       case "btn-salir": salirDeSala(); break;
-      case "btn-cerrar": case "btn-cerrar-2": { const letras = letrasActuales(); if (!letras.every(Boolean)) return; cerrarCon({ letras }); break; }
+      case "btn-cerrar": case "btn-cerrar-2": { const letras = letrasActuales(); if (!letras.every(Boolean)) return; if (!puedeCerrarAhora()) { avisar("Las propuestas de los dos equipos no coinciden todavía."); pintarVerificacion(); return; } cerrarCon({ letras }); break; }
       case "btn-sin": case "btn-sin-2": abrirPanelSin(); break;
       case "btn-sin-volver": document.getElementById("panel-sin").hidden = true; break;
       case "btn-reabrir": estado.cerrado = null; guardarS("cerrado", null); Sync.fijar("salas/" + estado.sala + "/cierre", null); firmaEscena = ""; if (location.hash !== "#negociar") location.hash = "#negociar"; else render(); break;
@@ -1784,7 +1846,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     if (rutaActual === "resultado" || rutaActual === "resultados" || rutaActual === "admin") { const rev = revelado(); if (rev !== (app.dataset.revelado === "1")) { app.dataset.revelado = rev ? "1" : "0"; if (rutaActual === "admin") pintarVivo(); else render(); } }
     if (rutaActual === "entrar") { const firmaArmado = armado() ? String(armado().abierto) : ""; if (app.dataset.armado !== firmaArmado) { app.dataset.armado = firmaArmado; if (estado.nombre) render(); } }
   });
-  Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); if (rutaActual === "resultados") calcular(); });
+  Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); pintarVerificacion(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); if (rutaActual === "resultados") calcular(); });
   let asignacionVista = null;
   Sync.escuchar("jugadores", v => {
     vivo.jugadores = v || {}; pintarConectados(); if (rutaActual === "admin") pintarVivo(); if (rutaActual === "entrar") { pintarHub(); pintarListos(); }
@@ -1803,6 +1865,14 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   });
   if (estado.nombre) anunciar();
   window.addEventListener("hashchange", render);
+  // El video del staff es opcional: el enlace aparece solo si el servidor lo tiene.
+  let videoStaffExiste = null;
+  function mostrarVideoStaff() {
+    const a = document.getElementById("enlace-video-staff"); if (!a) return;
+    if (videoStaffExiste !== null) { a.hidden = !videoStaffExiste; return; }
+    fetch("video/staff.mp4", { method: "HEAD" }).then(r => { videoStaffExiste = r.ok; a.hidden = !r.ok; }).catch(() => { videoStaffExiste = false; });
+  }
+  setInterval(mostrarVideoStaff, 1000); mostrarVideoStaff();
   document.getElementById("aviso-sala").addEventListener("click", ocultarAvisoSala);
   window.addEventListener("pagehide", despedidaInmediata);
   render();
