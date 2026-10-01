@@ -108,12 +108,15 @@ const servidor = http.createServer(async (req, res) => {
   // archivos estáticos, con direcciones limpias (/fichas -> fichas.html)
   let ruta = decodeURIComponent(url.pathname);
   const privada = /^\/(servidor|datos|Dockerfile)(\/|$)/.test(ruta) || /^\/\.|\/\./.test(ruta); // el código del servidor, la base y los archivos ocultos no se sirven
-  if (ruta.includes("..") || privada) { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }); return res.end("No encontrado"); }
+  // Los 404 van con no-store: si no, Cloudflare cachea el 404 cinco minutos y un archivo recién
+  // desplegado sigue «sin existir» aunque el contenedor nuevo ya lo sirva.
+  const noEncontrado = () => { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }); res.end("No encontrado"); };
+  if (ruta.includes("..") || privada) return noEncontrado();
   if (ruta === "/") ruta = "/index.html";
   let archivo = path.join(RAIZ, ruta);
   if (!path.extname(archivo) && fs.existsSync(archivo + ".html")) archivo += ".html";
-  if (!fs.existsSync(archivo) || fs.statSync(archivo).isDirectory()) { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }); return res.end("No encontrado"); }
-  res.writeHead(200, { "Content-Type": TIPOS[path.extname(archivo)] || "application/octet-stream", "Cache-Control": archivo.endsWith(".html") || archivo.endsWith(".js") ? "no-cache" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow" });
+  if (!fs.existsSync(archivo) || fs.statSync(archivo).isDirectory()) return noEncontrado();
+  res.writeHead(200, { "Content-Type": TIPOS[path.extname(archivo)] || "application/octet-stream", "Cache-Control": /\.(html|js|css)$/.test(archivo) ? "no-cache" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow" });
   fs.createReadStream(archivo).pipe(res);
 });
 servidor.listen(PUERTO, () => console.log("Trato Hecho escuchando en el puerto " + PUERTO));
