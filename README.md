@@ -144,11 +144,14 @@ Lo que hay que saber para la clase:
   van con `no-store` y `app.js` lee la versión de su propia etiqueta `<script>` para
   pedir el video con ella. Después de un despliegue basta una recarga normal. Los
   404 también van con `no-store`, porque el borde los guardaba cinco minutos.
-- **Video.** `video/intro.mp4` (con `intro.vtt` e `intro-poster.jpg`) se sirve con
-  `Accept-Ranges`, `Content-Length` y `Cache-Control: no-transform`, y responde `206` a
-  los `Range`: sin eso Safari en iPhone no lo reproduce. El `no-transform` importa:
-  el proxy de Coolify comprime las respuestas y les quita el largo, y Cloudflare
-  entonces contesta `200` a los `Range` aunque el origen diga `206`. Pesa 12,5 MB y Cloudflare lo guarda en el borde, así que treinta
+- **Video.** `video/intro.mp4` se sirve con `Accept-Ranges`, `Content-Length`,
+  `Content-Encoding: identity` y `Cache-Control: private, no-transform`, y responde
+  `206` a los `Range`: sin eso Safari en iPhone no lo reproduce. El detalle importa:
+  el proxy de Coolify (Traefik) comprime las respuestas y les quita el largo, y
+  Cloudflare guardaba el video sin largo conocido y contestaba `200` a los `Range`
+  aunque el origen dijera `206`. Con `private` el video no pasa por la caché del
+  borde (cada petición llega al contenedor, 12,5 MB por persona) y con `identity`
+  Traefik no lo comprime. El `.vtt` y el póster sí se cachean. Pesa 12,5 MB y Cloudflare lo guarda en el borde, así que treinta
   personas a la vez no le pegan al contenedor.
 
 Correr local con tablero en vivo:

@@ -136,11 +136,14 @@ const servidor = http.createServer(async (req, res) => {
     return res.end(cuerpo);
   }
   const st = fs.statSync(archivo);
-  // no-transform en video/: el proxy de Coolify (Traefik) comprime las respuestas y les quita el
-  // Content-Length, y entonces Cloudflare guarda el archivo sin largo conocido y contesta 200 a los
-  // Range en vez de 206 (y Safari en iPhone no reproduce). Con no-transform ni Traefik ni Cloudflare lo tocan.
-  const video = /\.(mp4|webm|vtt|jpg)$/.test(archivo);
-  const cab = { "Content-Type": TIPOS[ext] || "application/octet-stream", "Cache-Control": video ? "public, max-age=86400, no-transform" : /\.(js|css)$/.test(archivo) ? "public, max-age=86400" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow", "Accept-Ranges": "bytes" };
+  // El video no pasa por la caché de Cloudflare ni por el compresor del proxy de Coolify (Traefik):
+  // comprimido pierde el Content-Length, Cloudflare lo guardaba sin largo conocido y contestaba 200 a
+  // los Range en vez de 206, y Safari en iPhone no reproduce así. Con «private» Cloudflare lo deja pasar
+  // tal cual (cada Range llega aquí y sale 206) y con Content-Encoding: identity Traefik no lo comprime.
+  // Son 12,5 MB por persona desde el contenedor: para un grupo de clase sobra.
+  const video = /\.(mp4|webm)$/.test(archivo), estatico = /\.(vtt|jpg)$/.test(archivo);
+  const cab = { "Content-Type": TIPOS[ext] || "application/octet-stream", "Cache-Control": video ? "private, max-age=0, no-transform" : estatico ? "public, max-age=86400, no-transform" : /\.(js|css)$/.test(archivo) ? "public, max-age=86400" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow", "Accept-Ranges": "bytes" };
+  if (video) cab["Content-Encoding"] = "identity";
   // Rangos (Range: bytes=a-b): el <video> de la sala de espera los necesita para arrancar sin bajar todo
   // el archivo y para adelantar; en iPhone, sin 206 el video directamente no se reproduce.
   const rango = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
