@@ -167,7 +167,8 @@
   const videollamada = () => C.videollamada || "Teams";
   const juego = () => (vivo.config && vivo.config.juego) || null;
   const juegoIniciado = () => !!(juego() && juego().iniciado);
-  const salasActivas = () => (juego() && juego().salas) || C.salas || 6;
+  const salasActivas = () => (juego() && juego().salas) || C.salas || 5;
+  const armado = () => (vivo.config && vivo.config.armado) || null;   // el plan de equipos, fijado por el admin con la gente que entró
 
   /* ---------- puntuación ---------- */
   const PLAN_B = { agencia: D.lados.agencia.planB.puntos, cliente: D.lados.cliente.planB.puntos };
@@ -497,10 +498,10 @@
     if (plan.P < 4) return `Somos ${plan.P}. Con menos de cuatro personas no hay dos equipos completos: el juego igual los acomoda al iniciar.`;
     const grandes = plan.extra, chicos = plan.T - plan.extra;
     const tam = grandes && chicos ? `${grandes} de ${plan.base + 1} y ${chicos} de ${plan.base}` : grandes ? `todos de ${plan.base + 1}` : `todos de ${plan.base}`;
-    return `Somos ${plan.P}: ${plan.T} equipos en ${plan.salas} ${plan.salas === 1 ? "sala" : "salas"}, ${tam}. Se ajusta solo según vayan llegando.`;
+    return `Somos ${plan.P}: ${plan.T} equipos en ${plan.salas} ${plan.salas === 1 ? "sala" : "salas"}, ${tam}.`;
   }
   function hubHTML(soloLectura) {
-    const activos = jugadoresActivos(), equipos = equiposDe(activos), plan = planPara(activos.length);
+    const activos = jugadoresActivos(), equipos = equiposDe(activos), plan = armado() || planPara(activos.length);
     const ocupados = Object.keys(equipos).map(Number);
     const cupo = Math.max(plan.T, ocupados.length ? Math.max(...ocupados) : 0);
     const maxEquipo = Math.max(2, plan.max);
@@ -511,17 +512,19 @@
       const m = (equipos[n] || []).slice().sort((a, b) => (a.entrado || 0) - (b.entrado || 0));
       const mio = estado.equipo === n;
       const asientos = m.map(x => `<div class="asiento ${x.id === idPestana ? "yo" : ""}"><span class="avatar">${esc(iniciales(x.nombre))}</span><span class="nombre">${esc(x.nombre)}</span></div>`);
-      for (let k = m.length; k < Math.max(2, Math.min(maxEquipo, m.length + 1)); k++) asientos.push(`<div class="asiento vacio ${k >= 2 ? "tercero" : ""}"><span class="avatar"></span><span class="nombre">${k >= 2 ? "lugar extra, si la cuenta lo pide" : "libre"}</span></div>`);
+      const cupoSlot = n <= plan.T ? plan.base + (n <= plan.extra ? 1 : 0) : maxEquipo;   // los primeros «extra» equipos son de base+1
+      for (let k = m.length; k < Math.max(cupoSlot, Math.min(maxEquipo, m.length)); k++) asientos.push(`<div class="asiento vacio"><span class="avatar"></span><span class="nombre">libre</span></div>`);
       const asig = vivo.config && vivo.config.equipos && vivo.config.equipos[n];
       let accion = "";
-      if (!soloLectura && !juegoIniciado()) accion = mio ? `<button type="button" class="boton chico fantasma" data-salir-equipo="${n}">Salir del equipo</button>` : m.length < maxEquipo ? `<button type="button" class="boton chico ${m.length ? "oro" : ""}" data-unirme-equipo="${n}">${m.length ? "Unirme" : "Abrir este equipo"}</button>` : `<span class="nota-pie">completo</span>`;
-      tarjetas.push(`<div class="equipo-slot ${mio ? "mio" : ""} ${m.length ? "" : "vacio"} ${m.length >= maxEquipo ? "lleno" : ""}" data-equipo="${n}">
-  <div class="equipo-cab"><b>Equipo ${n}</b>${asig ? `<span class="cinta ${asig.lado}" style="font-size:.75rem">Sala ${asig.sala} · ${esc(D.lados[asig.lado].rol)}</span>` : `<span class="cinta gris" style="font-size:.75rem">${m.length ? m.length + (m.length === 1 ? " persona" : " personas") : "libre"}</span>`}</div>
+      if (!soloLectura && !juegoIniciado()) accion = mio ? `<button type="button" class="boton chico fantasma" data-salir-equipo="${n}">Salir del equipo</button>` : m.length < cupoSlot ? `<button type="button" class="boton chico ${m.length ? "oro" : ""}" data-unirme-equipo="${n}">${m.length ? "Unirme" : "Abrir este equipo"}</button>` : `<span class="nota-pie">completo</span>`;
+      tarjetas.push(`<div class="equipo-slot ${mio ? "mio" : ""} ${m.length ? "" : "vacio"} ${m.length >= cupoSlot ? "lleno" : ""}" data-equipo="${n}">
+  <div class="equipo-cab"><b>Equipo ${n}</b>${asig ? `<span class="cinta ${asig.lado}" style="font-size:.75rem">Sala ${asig.sala} · ${esc(D.lados[asig.lado].rol)}</span>` : `<span class="cinta gris" style="font-size:.75rem">${m.length}/${cupoSlot}</span>`}</div>
   <div class="asientos-equipo">${asientos.join("")}</div>
   ${accion ? `<div class="botones">${accion}</div>` : ""}
 </div>`);
     }
-    return `<div class="vivo-resumen"><span class="conectados">${conectadosHTML()}</span><span>${armados} ${armados === 1 ? "equipo armado" : "equipos armados"} · ${sueltos.length} sin equipo</span></div><p class="nota-pie">${esc(planTexto(plan))}</p><div class="equipos-hub">${tarjetas.join("")}</div>`;
+    const aviso = armado() && activos.length !== armado().P ? ` Ahora somos ${activos.length}: el administrador puede recalcular, o acomodar a quien falte al iniciar.` : "";
+    return `<div class="vivo-resumen"><span class="conectados">${conectadosHTML()}</span><span>${armados} ${armados === 1 ? "equipo armado" : "equipos armados"} · ${sueltos.length} sin equipo</span></div><p class="nota-pie">${esc(planTexto(plan) + aviso)}</p><div class="equipos-hub">${tarjetas.join("")}</div>`;
   }
   /* Reparte a la gente en exactamente T equipos del tamaño que toca, respetando lo que armaron:
      los equipos que se pasan del tamaño sueltan a quien entró de último; los que faltan se abren
@@ -591,6 +594,12 @@
     });
     Sync.fijar("config/juego", { iniciado: ts, salas: plan.salas });
     if (!RELOJES.admin.inicio) RELOJES.admin.fijar(ts);
+    return true;
+  }
+  function abrirArmado() {
+    const P = jugadoresActivos().length;
+    if (P < 2) { avisar("Hacen falta al menos dos personas."); return false; }
+    Sync.fijar("config/armado", Object.assign({ abierto: Date.now() }, planPara(P)));
     return true;
   }
   function equiposAdminHTML() {
@@ -841,12 +850,19 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
   <div class="panel oro"><span class="ojo">El juego ya empezó</span><h2>Esperá un momento</h2><p>El administrador te va a ubicar en un equipo que ya tiene sala. Cuando lo haga, esta pantalla te dice a qué sala de ${esc(videollamada())} entrar.</p><div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>Esperando al administrador…</p></div></div>
 </section>${caso}`;
       }
+      if (!armado()) {
+        return `
+<section class="pantalla">
+  ${cabecera}
+  <div class="panel menta"><span class="ojo">Pre-sala</span><h2>Ya estás dentro</h2><p>Esperá a que entren todos. Cuando el administrador vea cuántos somos, abre el armado de equipos y elegís con quién jugar; el tamaño de los equipos sale de la cantidad de gente. Mientras tanto, mirá cómo se juega.</p><div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>Esperando al administrador…</p></div></div>
+</section>${caso}`;
+      }
       return `
 <section class="pantalla">
   ${cabecera}
   <div class="panel" id="hub">
     <h2>Armá tu equipo</h2>
-    <p>Tocá «Unirme» en un equipo con alguien, o abrí uno nuevo y esperá a que alguien se una. Los equipos son de <b>dos o tres</b> según cuántos seamos: se juega en ${salasActivas()} salas y todos entran. Cuando estén todos, el administrador inicia el juego y a cada equipo le toca un lado y una sala de ${esc(videollamada())}.</p>
+    <p>Tocá «Unirme» en un equipo con alguien, o abrí uno nuevo y esperá a que alguien se una. Cada equipo muestra cuántos lugares tiene. Cuando estén todos acomodados, el administrador inicia el juego y a cada equipo le toca un lado y una sala de ${esc(videollamada())}.</p>
     <div id="hub-equipos" style="margin-top:12px">${hubHTML(false)}</div>
   </div>
 </section>${caso}`;
@@ -1279,7 +1295,9 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     const fa = RELOJES.admin.fase(), j = enVivo() ? jugadoresActivos() : [], equipos = equiposDe(j), armados = Object.keys(equipos).length, sueltos = j.filter(x => !(x.equipo > 0)).length;
     const conteo = enVivo() ? `<span class="conectados"><span class="punto" aria-hidden="true"></span>${j.length} ${j.length === 1 ? "persona conectada" : "personas conectadas"} · ${armados} ${armados === 1 ? "equipo" : "equipos"} · ${sueltos} sin equipo</span>` : `<span class="nota-pie">Sin tablero en vivo no se ve quién está conectado.</span>`;
     if (juegoIniciado() || fa) return `<div class="cabecera"><div><span class="ojo">En marcha</span><h2>${fa ? esc(fa.nombre) + " · " + mmss(fa.restante) : "Juego iniciado"}</h2><p class="nota-pie">${salasActivas()} salas. Las pantallas de los equipos van con este reloj: «Siguiente fase» salta, «Reiniciar» lo detiene. Si alguien entra tarde, «Acomodar a los que faltan» lo mete de tercero en un equipo con sala.</p></div><div class="ficha-identidad">${conteo}${sueltos ? `<button type="button" class="boton chico oro" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}</div></div>`;
-    return `<div class="cabecera"><div><span class="ojo">Armando equipos</span><h2>Iniciar el juego</h2><p class="nota-pie">${esc(planTexto(planPara(j.length)))} Este botón completa el reparto (los equipos armados se respetan; quien sobra o falta se acomoda), le asigna a cada equipo un lado y una sala, se lo muestra en su pantalla con la sala de ${esc(videollamada())} a la que debe entrar, y arranca el reloj completo.</p></div><div class="ficha-identidad">${conteo}<div class="botones">${sueltos ? `<button type="button" class="boton fantasma" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}<button type="button" class="boton oro grande" id="btn-iniciar-juego" ${j.length >= 2 ? "" : "disabled"}>Iniciar juego</button></div></div></div>`;
+    if (!armado()) return `<div class="cabecera"><div><span class="ojo">Pre-sala</span><h2>Esperando a que entren todos</h2><p class="nota-pie">Cada persona escribe su nombre y espera. Cuando estén todos, este botón fija el plan con la gente que hay (${esc(planTexto(planPara(j.length)))}) y les abre el hub para armar equipos de ese tamaño.</p></div><div class="ficha-identidad">${conteo}<button type="button" class="boton oro grande" id="btn-abrir-armado" ${j.length >= 2 ? "" : "disabled"}>Abrir el armado de equipos</button></div></div>`;
+    const cambio = armado().P !== j.length ? `<p class="nota-pie" style="color:var(--aviso)">El plan se fijó con ${armado().P} y ahora hay ${j.length}. «Recalcular» rehace el plan con los que hay; si no, al iniciar se acomoda a quien sobre o falte.</p>` : "";
+    return `<div class="cabecera"><div><span class="ojo">Armando equipos</span><h2>Iniciar el juego</h2><p class="nota-pie">${esc(planTexto(armado()))} Este botón completa el reparto (los equipos armados se respetan; quien sobra o falta se acomoda), le asigna a cada equipo un lado y una sala, se lo muestra en su pantalla con la sala de ${esc(videollamada())} a la que debe entrar, y arranca el reloj completo.</p>${cambio}</div><div class="ficha-identidad">${conteo}<div class="botones">${armado().P !== j.length ? `<button type="button" class="boton fantasma chico" id="btn-abrir-armado">Recalcular con ${j.length}</button>` : ""}${sueltos ? `<button type="button" class="boton fantasma" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}<button type="button" class="boton oro grande" id="btn-iniciar-juego" ${j.length >= 2 ? "" : "disabled"}>Iniciar juego</button></div></div></div>`;
   }
   function vistaAdmin() {
     const t = D.tiempos, total = FASES_ADMIN.reduce((s, f) => s + f.dur, 0);
@@ -1581,6 +1599,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
         setTimeout(() => { if (!listo) { avisar("Sin respuesta en 8 s: revise la conexión con el servidor."); quitar(); } }, 8000);
         break;
       }
+      case "btn-abrir-armado": if (abrirArmado()) avisar("Hub de equipos abierto para todos."); break;
       case "btn-acomodar": { const k = acomodar(); avisar(k ? k + (k === 1 ? " persona acomodada" : " personas acomodadas") : "No hay a quién acomodar o no queda espacio."); break; }
       case "btn-iniciar-juego": if (iniciarJuego()) avisar("Juego iniciado: cada equipo ve su sala y su lado."); break;
       case "btn-reiniciar": document.getElementById("confirmar-reinicio").hidden = false; break;
@@ -1622,6 +1641,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     else { RELOJES.equipo.remoto = inicio ? inicio + D.tiempos.consigna * 1000 : null; RELOJES.admin.remoto = inicio; }
     vivo.reloj = v.reloj || null; tick();
     if (rutaActual === "resultado" || rutaActual === "resultados") { const rev = revelado(); if (rev !== (app.dataset.revelado === "1")) { app.dataset.revelado = rev ? "1" : "0"; render(); } }
+    if (rutaActual === "entrar") { const firmaArmado = armado() ? String(armado().abierto) : ""; if (app.dataset.armado !== firmaArmado) { app.dataset.armado = firmaArmado; if (estado.nombre) render(); } }
   });
   Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); if (rutaActual === "resultados") calcular(); });
   let asignacionVista = null;
