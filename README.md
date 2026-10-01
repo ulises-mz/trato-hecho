@@ -201,10 +201,12 @@ python3 -m http.server 8765      # solo la web estática (sin tablero): http://1
 **Producción (Coolify):** el sitio se construye con el `Dockerfile` de esta
 carpeta desde el repositorio público `ulises-mz/trato-hecho`, que es una copia
 de esta carpeta (el hub es privado y el conector de Coolify solo despliega
-repositorios públicos). Puerto 3000, dominio `https://tratohecho.siriusx.net`
-(el comodín de siriusx.net ya apunta al servidor; no hay DNS que tocar). Para
-publicar un cambio: copiar la carpeta al repo público, commitear y volver a
-desplegar desde Coolify o pedirlo en la sesión.
+repositorios públicos). Puerto 3000, dominio `https://tratohecho.siriusx.net`.
+El nombre tiene que estar publicado en Cloudflare como los demás sitios de
+siriusx.net (los subdominios desconocidos devuelven un 404 vacío antes de
+llegar al proxy del servidor). Para publicar un cambio: copiar la carpeta al
+repo público, commitear y volver a desplegar desde Coolify o pedirlo en la
+sesión.
 
 **Copia estática (Vercel):** el proyecto `trato-hecho` de Vercel sigue ligado
 al repositorio del hub con esta carpeta como raíz, sin build. Sirve como
