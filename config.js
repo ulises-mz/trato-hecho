@@ -15,9 +15,10 @@ window.CONFIG = {
   // Clave que abre las vistas Admin y Staff. Cambiarla antes de la clase.
   claveStaff: "grupo4",
 
-  // Cuántas salas muestra el tablero en vivo aunque todavía no haya entrado nadie, y cuántos
-  // equipos (dos por sala) ofrece el hub para armarse. Con 26 estudiantes: 6 salas, 12 equipos.
-  salas: 6,
+  // Salas que se usan como máximo: una por integrante del staff. El juego reparte a toda la clase en
+  // estas salas (dos equipos por sala) y el tamaño de los equipos se ajusta a la gente que haya:
+  // con 26 personas en 5 salas, diez equipos, seis de tres y cuatro de dos.
+  salas: 5,
 
   // Cómo se llama la videollamada en los textos («entrá a la sala 3 en Teams»).
   videollamada: "Teams"

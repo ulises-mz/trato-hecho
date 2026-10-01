@@ -483,81 +483,113 @@
     const a = remota || local || {};
     return { temas: a.temas || {}, notas: Array.isArray(a.notas) ? a.notas : Object.values(a.notas || {}), actualizado: a.actualizado || 0 };
   }
-  /* ---------- equipos ---------- */
+  /* ---------- equipos ----------
+     Las salas son fijas (C.salas, una por staff) y el tamaño de los equipos se ajusta a la gente:
+     con P personas se usan min(C.salas, P/4) salas, dos equipos por sala, y cada equipo tiene
+     floor(P/T) o floor(P/T)+1 personas. Con 26 en 5 salas: diez equipos, seis de tres y cuatro de dos. */
   const equiposDe = lista => { const m = {}; lista.forEach(j => { if (j.equipo > 0) (m[j.equipo] = m[j.equipo] || []).push(j); }); return m; };
-  const cupoEquipos = () => Math.max(2 * (C.salas || 6), Math.ceil(jugadoresActivos().length / 2));
-  const MAX_EQUIPO = 3;
+  const salasPara = P => Math.max(1, Math.min(C.salas || 5, Math.floor(P / 4)));
+  function planPara(P) {
+    const salas = salasPara(P), T = salas * 2, base = Math.floor(P / T), extra = P % T;
+    return { P, salas, T, base, extra, max: P ? base + (extra ? 1 : 0) : 2 };   // extra equipos tienen base+1
+  }
+  function planTexto(plan) {
+    if (plan.P < 4) return `Somos ${plan.P}. Con menos de cuatro personas no hay dos equipos completos: el juego igual los acomoda al iniciar.`;
+    const grandes = plan.extra, chicos = plan.T - plan.extra;
+    const tam = grandes && chicos ? `${grandes} de ${plan.base + 1} y ${chicos} de ${plan.base}` : grandes ? `todos de ${plan.base + 1}` : `todos de ${plan.base}`;
+    return `Somos ${plan.P}: ${plan.T} equipos en ${plan.salas} ${plan.salas === 1 ? "sala" : "salas"}, ${tam}. Se ajusta solo según vayan llegando.`;
+  }
   function hubHTML(soloLectura) {
-    const activos = jugadoresActivos(), equipos = equiposDe(activos), cupo = cupoEquipos();
+    const activos = jugadoresActivos(), equipos = equiposDe(activos), plan = planPara(activos.length);
+    const ocupados = Object.keys(equipos).map(Number);
+    const cupo = Math.max(plan.T, ocupados.length ? Math.max(...ocupados) : 0);
+    const maxEquipo = Math.max(2, plan.max);
     const sueltos = activos.filter(j => !(j.equipo > 0));
-    const armados = Object.keys(equipos).length;
+    const armados = ocupados.filter(n => equipos[n].length).length;
     const tarjetas = [];
     for (let n = 1; n <= cupo; n++) {
       const m = (equipos[n] || []).slice().sort((a, b) => (a.entrado || 0) - (b.entrado || 0));
       const mio = estado.equipo === n;
       const asientos = m.map(x => `<div class="asiento ${x.id === idPestana ? "yo" : ""}"><span class="avatar">${esc(iniciales(x.nombre))}</span><span class="nombre">${esc(x.nombre)}</span></div>`);
-      for (let k = m.length; k < 2; k++) asientos.push(`<div class="asiento vacio"><span class="avatar"></span><span class="nombre">libre</span></div>`);
-      if (m.length === 2 && !soloLectura && !mio) asientos.push(`<div class="asiento vacio tercero"><span class="avatar"></span><span class="nombre">tercero, solo si sobran</span></div>`);
+      for (let k = m.length; k < Math.max(2, Math.min(maxEquipo, m.length + 1)); k++) asientos.push(`<div class="asiento vacio ${k >= 2 ? "tercero" : ""}"><span class="avatar"></span><span class="nombre">${k >= 2 ? "lugar extra, si la cuenta lo pide" : "libre"}</span></div>`);
       const asig = vivo.config && vivo.config.equipos && vivo.config.equipos[n];
       let accion = "";
-      if (!soloLectura && !juegoIniciado()) accion = mio ? `<button type="button" class="boton chico fantasma" data-salir-equipo="${n}">Salir del equipo</button>` : m.length < MAX_EQUIPO ? `<button type="button" class="boton chico ${m.length ? "oro" : ""}" data-unirme-equipo="${n}">${m.length ? "Unirme" : "Abrir este equipo"}</button>` : `<span class="nota-pie">completo</span>`;
-      tarjetas.push(`<div class="equipo-slot ${mio ? "mio" : ""} ${m.length ? "" : "vacio"} ${m.length >= MAX_EQUIPO ? "lleno" : ""}" data-equipo="${n}">
+      if (!soloLectura && !juegoIniciado()) accion = mio ? `<button type="button" class="boton chico fantasma" data-salir-equipo="${n}">Salir del equipo</button>` : m.length < maxEquipo ? `<button type="button" class="boton chico ${m.length ? "oro" : ""}" data-unirme-equipo="${n}">${m.length ? "Unirme" : "Abrir este equipo"}</button>` : `<span class="nota-pie">completo</span>`;
+      tarjetas.push(`<div class="equipo-slot ${mio ? "mio" : ""} ${m.length ? "" : "vacio"} ${m.length >= maxEquipo ? "lleno" : ""}" data-equipo="${n}">
   <div class="equipo-cab"><b>Equipo ${n}</b>${asig ? `<span class="cinta ${asig.lado}" style="font-size:.75rem">Sala ${asig.sala} · ${esc(D.lados[asig.lado].rol)}</span>` : `<span class="cinta gris" style="font-size:.75rem">${m.length ? m.length + (m.length === 1 ? " persona" : " personas") : "libre"}</span>`}</div>
   <div class="asientos-equipo">${asientos.join("")}</div>
   ${accion ? `<div class="botones">${accion}</div>` : ""}
 </div>`);
     }
-    return `<div class="vivo-resumen"><span class="conectados">${conectadosHTML()}</span><span>${armados} ${armados === 1 ? "equipo armado" : "equipos armados"} · ${sueltos.length} sin equipo</span></div><div class="equipos-hub">${tarjetas.join("")}</div>`;
+    return `<div class="vivo-resumen"><span class="conectados">${conectadosHTML()}</span><span>${armados} ${armados === 1 ? "equipo armado" : "equipos armados"} · ${sueltos.length} sin equipo</span></div><p class="nota-pie">${esc(planTexto(plan))}</p><div class="equipos-hub">${tarjetas.join("")}</div>`;
   }
-  /* Acomoda a quienes no tienen equipo: primero completa parejas, luego abre equipos nuevos de dos,
-     y si sobra una persona va de tercera. Con el juego iniciado, los que entren tarde van de terceros a
-     equipos que ya tienen sala. Devuelve cuántos acomodó. */
+  /* Reparte a la gente en exactamente T equipos del tamaño que toca, respetando lo que armaron:
+     los equipos que se pasan del tamaño sueltan a quien entró de último; los que faltan se abren
+     y se llenan con los sueltos. Devuelve { equipos: {n: [jugadores]}, numeros: [n…] } y escribe
+     los cambios de equipo. */
+  function repartirEquipos(activos) {
+    const plan = planPara(activos.length), equipos = equiposDe(activos);
+    for (const n in equipos) equipos[n].sort((a, b) => (a.entrado || 0) - (b.entrado || 0));
+    let numeros = Object.keys(equipos).map(Number).filter(n => equipos[n].length).sort((a, b) => a - b);
+    const sueltos = activos.filter(j => !(j.equipo > 0)).sort((a, b) => (a.entrado || 0) - (b.entrado || 0));
+    // sobran equipos: se disuelven los más chicos (y de número más alto) hacia los sueltos
+    while (numeros.length > plan.T) {
+      const n = numeros.slice().sort((a, b) => equipos[a].length - equipos[b].length || b - a)[0];
+      sueltos.push(...equipos[n]); delete equipos[n]; numeros = numeros.filter(x => x !== n);
+    }
+    // faltan equipos: se abren con los números libres más bajos
+    for (let n = 1; numeros.length < plan.T; n++) if (!equipos[n] || !equipos[n].length) { equipos[n] = []; numeros.push(n); }
+    numeros.sort((a, b) => a - b);
+    // tamaños objetivo: los equipos más grandes se quedan con base+1
+    const orden = numeros.slice().sort((a, b) => equipos[b].length - equipos[a].length || a - b);
+    const objetivo = {}; orden.forEach((n, i) => { objetivo[n] = plan.base + (i < plan.extra ? 1 : 0); });
+    numeros.forEach(n => { while (equipos[n].length > objetivo[n]) sueltos.unshift(equipos[n].pop()); });
+    numeros.forEach(n => { while (equipos[n].length < objetivo[n] && sueltos.length) equipos[n].push(sueltos.shift()); });
+    numeros.forEach(n => equipos[n].forEach(j => { if (j.equipo !== n) { j.equipo = n; Sync.fijar("jugadores/" + j.id + "/equipo", n); } }));
+    return { equipos, numeros, plan };
+  }
+  /* Antes de iniciar: solo acomoda a los sueltos sin tocar los equipos armados (los deja de extra
+     donde haya espacio o abre equipos nuevos). Con el juego iniciado, mete a quien llegó tarde al
+     equipo más chico, que ya tiene sala. */
   function acomodar() {
-    const activos = jugadoresActivos(), equipos = equiposDe(activos), cupo = cupoEquipos();
+    const activos = jugadoresActivos(), equipos = equiposDe(activos), plan = planPara(activos.length);
     const sueltos = activos.filter(j => !(j.equipo > 0)).sort((a, b) => (a.entrado || 0) - (b.entrado || 0));
     if (!sueltos.length) return 0;
     const poner = (j, n) => { equipos[n] = equipos[n] || []; equipos[n].push(j); Sync.fijar("jugadores/" + j.id + "/equipo", n); const asig = vivo.config && vivo.config.equipos && vivo.config.equipos[n]; if (juegoIniciado() && asig) Sync.fijar("jugadores/" + j.id + "/asignacion", { sala: asig.sala, lado: asig.lado, rol: "analista", equipo: n, ts: Date.now() }); };
     let k = 0;
-    const conUno = () => Object.keys(equipos).map(Number).filter(n => equipos[n].length === 1).sort((a, b) => a - b);
-    // completar parejas
-    for (const n of conUno()) { if (k >= sueltos.length) break; poner(sueltos[k++], n); }
-    if (!juegoIniciado()) {
-      // equipos nuevos de dos
-      let n = 1;
-      while (k + 1 < sueltos.length) { while (equipos[n] && equipos[n].length) n++; if (n > cupo + 20) break; poner(sueltos[k++], n); poner(sueltos[k++], n); }
+    if (juegoIniciado()) {
+      const conSala = Object.keys((vivo.config && vivo.config.equipos) || {}).map(Number);
+      while (k < sueltos.length && conSala.length) { const n = conSala.sort((a, b) => (equipos[a] || []).length - (equipos[b] || []).length || a - b)[0]; poner(sueltos[k++], n); }
+      return k;
     }
-    // los que sobran, de terceros al equipo más chico con cupo
+    const maxEquipo = Math.max(2, plan.max);
+    for (let n = 1; k < sueltos.length; n++) {
+      if (n > plan.T + 50) break;
+      const tam = (equipos[n] || []).length;
+      if (tam === 0 && n > plan.T) continue;
+      if (tam === 1) poner(sueltos[k++], n);
+      else if (tam === 0 && k + 1 < sueltos.length) { poner(sueltos[k++], n); poner(sueltos[k++], n); }
+    }
     while (k < sueltos.length) {
-      const destino = Object.keys(equipos).map(Number).filter(n => equipos[n].length < MAX_EQUIPO && (!juegoIniciado() || (vivo.config.equipos || {})[n])).sort((a, b) => equipos[a].length - equipos[b].length || a - b)[0];
+      const destino = Object.keys(equipos).map(Number).filter(n => equipos[n].length && equipos[n].length < maxEquipo).sort((a, b) => equipos[a].length - equipos[b].length || a - b)[0];
       if (!destino) break;
       poner(sueltos[k++], destino);
     }
     return k;
   }
-  /* Inicia el juego: acomoda a los sueltos, resuelve un número impar de equipos repartiendo el último de
-     terceros, asigna sala y lado por pares de equipos y arranca el reloj del administrador. */
+  /* Inicia el juego: reparte a todos en T equipos del tamaño que toca, asigna sala y lado por pares
+     de equipos y arranca el reloj del administrador. */
   function iniciarJuego() {
-    acomodar();
-    const activos = jugadoresActivos(), equipos = equiposDe(activos);
-    // los recién acomodados aún no llegaron por el canal: aplicar lo mismo en memoria
-    let numeros = Object.keys(equipos).map(Number).sort((a, b) => a - b).filter(n => equipos[n].length);
-    if (numeros.length < 2) { avisar("Hacen falta al menos dos equipos para empezar."); return false; }
-    if (numeros.length % 2 === 1) {
-      const ultimo = numeros[numeros.length - 1], miembros = equipos[ultimo]; numeros = numeros.slice(0, -1);
-      for (const m of miembros) {
-        const destino = numeros.filter(n => equipos[n].length < MAX_EQUIPO).sort((a, b) => equipos[a].length - equipos[b].length || a - b)[0];
-        if (!destino) { avisar("Queda un equipo sin rival y no hay espacio de terceros. Movelo a mano."); return false; }
-        equipos[destino].push(m); Sync.fijar("jugadores/" + m.id + "/equipo", destino);
-      }
-      delete equipos[ultimo];
-    }
-    const ts = Date.now(), salas = numeros.length / 2;
+    const activos = jugadoresActivos();
+    if (activos.length < 2) { avisar("Hacen falta al menos dos personas para empezar."); return false; }
+    const { equipos, numeros, plan } = repartirEquipos(activos);
+    const ts = Date.now();
     numeros.forEach((n, i) => {
       const sala = Math.floor(i / 2) + 1, lado = LADOS[i % 2];
       Sync.fijar("config/equipos/" + n, { sala, lado, ts });
-      equipos[n].slice().sort((a, b) => (a.entrado || 0) - (b.entrado || 0)).forEach((m, k) => Sync.fijar("jugadores/" + m.id + "/asignacion", { sala, lado, rol: k === 0 ? "vocero" : "analista", equipo: n, ts }));
+      equipos[n].forEach((m, k) => Sync.fijar("jugadores/" + m.id + "/asignacion", { sala, lado, rol: k === 0 ? "vocero" : "analista", equipo: n, ts }));
     });
-    Sync.fijar("config/juego", { iniciado: ts, salas });
+    Sync.fijar("config/juego", { iniciado: ts, salas: plan.salas });
     if (!RELOJES.admin.inicio) RELOJES.admin.fijar(ts);
     return true;
   }
@@ -814,7 +846,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
   ${cabecera}
   <div class="panel" id="hub">
     <h2>Armá tu equipo</h2>
-    <p>Equipos de <b>dos</b>. Si la cuenta no da, alguno será de tres. Tocá «Unirme» en un equipo con alguien, o abrí uno nuevo y esperá a que alguien se una. Cuando estén todos, el administrador inicia el juego y a cada equipo le toca un lado y una sala de ${esc(videollamada())}.</p>
+    <p>Tocá «Unirme» en un equipo con alguien, o abrí uno nuevo y esperá a que alguien se una. Los equipos son de <b>dos o tres</b> según cuántos seamos: se juega en ${salasActivas()} salas y todos entran. Cuando estén todos, el administrador inicia el juego y a cada equipo le toca un lado y una sala de ${esc(videollamada())}.</p>
     <div id="hub-equipos" style="margin-top:12px">${hubHTML(false)}</div>
   </div>
 </section>${caso}`;
@@ -1247,7 +1279,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     const fa = RELOJES.admin.fase(), j = enVivo() ? jugadoresActivos() : [], equipos = equiposDe(j), armados = Object.keys(equipos).length, sueltos = j.filter(x => !(x.equipo > 0)).length;
     const conteo = enVivo() ? `<span class="conectados"><span class="punto" aria-hidden="true"></span>${j.length} ${j.length === 1 ? "persona conectada" : "personas conectadas"} · ${armados} ${armados === 1 ? "equipo" : "equipos"} · ${sueltos} sin equipo</span>` : `<span class="nota-pie">Sin tablero en vivo no se ve quién está conectado.</span>`;
     if (juegoIniciado() || fa) return `<div class="cabecera"><div><span class="ojo">En marcha</span><h2>${fa ? esc(fa.nombre) + " · " + mmss(fa.restante) : "Juego iniciado"}</h2><p class="nota-pie">${salasActivas()} salas. Las pantallas de los equipos van con este reloj: «Siguiente fase» salta, «Reiniciar» lo detiene. Si alguien entra tarde, «Acomodar a los que faltan» lo mete de tercero en un equipo con sala.</p></div><div class="ficha-identidad">${conteo}${sueltos ? `<button type="button" class="boton chico oro" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}</div></div>`;
-    return `<div class="cabecera"><div><span class="ojo">Armando equipos</span><h2>Iniciar el juego</h2><p class="nota-pie">Cuando estén todos en equipos de dos (o tres), este botón le asigna a cada equipo un lado y una sala, se lo muestra en su pantalla con la sala de ${esc(videollamada())} a la que debe entrar, y arranca el reloj completo. Si queda un número impar de equipos, el último se reparte de terceros.</p></div><div class="ficha-identidad">${conteo}<div class="botones">${sueltos ? `<button type="button" class="boton fantasma" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}<button type="button" class="boton oro grande" id="btn-iniciar-juego" ${j.length >= 2 ? "" : "disabled"}>Iniciar juego</button></div></div></div>`;
+    return `<div class="cabecera"><div><span class="ojo">Armando equipos</span><h2>Iniciar el juego</h2><p class="nota-pie">${esc(planTexto(planPara(j.length)))} Este botón completa el reparto (los equipos armados se respetan; quien sobra o falta se acomoda), le asigna a cada equipo un lado y una sala, se lo muestra en su pantalla con la sala de ${esc(videollamada())} a la que debe entrar, y arranca el reloj completo.</p></div><div class="ficha-identidad">${conteo}<div class="botones">${sueltos ? `<button type="button" class="boton fantasma" id="btn-acomodar">Acomodar a los que faltan (${sueltos})</button>` : ""}<button type="button" class="boton oro grande" id="btn-iniciar-juego" ${j.length >= 2 ? "" : "disabled"}>Iniciar juego</button></div></div></div>`;
   }
   function vistaAdmin() {
     const t = D.tiempos, total = FASES_ADMIN.reduce((s, f) => s + f.dur, 0);
