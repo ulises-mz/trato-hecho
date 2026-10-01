@@ -140,13 +140,15 @@ Lo que hay que saber para la clase:
 - `datos/`, `servidor/` y los archivos ocultos no se sirven.
 - **Caché.** Cloudflare alarga a cuatro horas la caché de `.js` y `.css` en el
   navegador, así que el servidor calcula al arrancar una versión (hash de todos
-  los `.js` y `.css` y de `video/`) y la mete en los `?v=__V__` de `index.html`; las páginas
+  los `.js` y `.css`, de `video/` y del servidor) y la mete en los `?v=__V__` de `index.html`; las páginas
   van con `no-store` y `app.js` lee la versión de su propia etiqueta `<script>` para
   pedir el video con ella. Después de un despliegue basta una recarga normal. Los
   404 también van con `no-store`, porque el borde los guardaba cinco minutos.
 - **Video.** `video/intro.mp4` (con `intro.vtt` e `intro-poster.jpg`) se sirve con
-  `Accept-Ranges` y responde `206` a los `Range`: sin eso Safari en iPhone no lo
-  reproduce. Pesa 12,5 MB y Cloudflare lo guarda en el borde, así que treinta
+  `Accept-Ranges`, `Content-Length` y `Cache-Control: no-transform`, y responde `206` a
+  los `Range`: sin eso Safari en iPhone no lo reproduce. El `no-transform` importa:
+  el proxy de Coolify comprime las respuestas y les quita el largo, y Cloudflare
+  entonces contesta `200` a los `Range` aunque el origen diga `206`. Pesa 12,5 MB y Cloudflare lo guarda en el borde, así que treinta
   personas a la vez no le pegan al contenedor.
 
 Correr local con tablero en vivo:

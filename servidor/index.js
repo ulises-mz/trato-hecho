@@ -22,12 +22,12 @@ const MAX_CUERPO = 64 * 1024;
    arrancar. index.html la recibe en los «?v=__V__» de sus scripts y hojas. Así cada despliegue cambia
    las direcciones y ningún navegador (ni Cloudflare, que alarga la caché de .js y .css a cuatro horas)
    se queda con código viejo: basta una recarga normal. */
-// Versión = hash de los .js/.css y de video/ (mp4, vtt, póster): el HTML la pone en ?v= y así un archivo
+// Versión = hash de los .js/.css, de video/ (mp4, vtt, póster) y del servidor: el HTML la pone en ?v= y así un archivo
 // nuevo nunca se queda atrapado en la caché del navegador ni en la de Cloudflare.
 const VERSION = (() => {
   const h = crypto.createHash("sha1");
   const sumar = (dir, filtro) => { if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir).sort()) if (filtro.test(f)) h.update(fs.readFileSync(path.join(dir, f))); };
-  sumar(RAIZ, /\.(js|css)$/); sumar(path.join(RAIZ, "video"), /\.(mp4|vtt|jpg)$/);
+  sumar(RAIZ, /\.(js|css)$/); sumar(path.join(RAIZ, "video"), /\.(mp4|vtt|jpg)$/); sumar(path.join(RAIZ, "servidor"), /\.js$/);
   return h.digest("hex").slice(0, 10);
 })();
 const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".pdf": "application/pdf", ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8", ".mp4": "video/mp4", ".webm": "video/webm", ".vtt": "text/vtt; charset=utf-8", ".jpg": "image/jpeg", ".srt": "text/plain; charset=utf-8" };
@@ -136,7 +136,11 @@ const servidor = http.createServer(async (req, res) => {
     return res.end(cuerpo);
   }
   const st = fs.statSync(archivo);
-  const cab = { "Content-Type": TIPOS[ext] || "application/octet-stream", "Cache-Control": /\.(js|css|mp4|vtt|jpg)$/.test(archivo) ? "public, max-age=86400" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow", "Accept-Ranges": "bytes" };
+  // no-transform en video/: el proxy de Coolify (Traefik) comprime las respuestas y les quita el
+  // Content-Length, y entonces Cloudflare guarda el archivo sin largo conocido y contesta 200 a los
+  // Range en vez de 206 (y Safari en iPhone no reproduce). Con no-transform ni Traefik ni Cloudflare lo tocan.
+  const video = /\.(mp4|webm|vtt|jpg)$/.test(archivo);
+  const cab = { "Content-Type": TIPOS[ext] || "application/octet-stream", "Cache-Control": video ? "public, max-age=86400, no-transform" : /\.(js|css)$/.test(archivo) ? "public, max-age=86400" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow", "Accept-Ranges": "bytes" };
   // Rangos (Range: bytes=a-b): el <video> de la sala de espera los necesita para arrancar sin bajar todo
   // el archivo y para adelantar; en iPhone, sin 206 el video directamente no se reproduce.
   const rango = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
