@@ -441,6 +441,23 @@ textarea { min-height: 70px; resize: vertical; }
 .zoom-salas .chip { cursor: default; }
 .zoom-salas .chip:active { transform: none; box-shadow: var(--sombra-chica); }
 
+/* ---------- guía del staff: etapas y empresas ---------- */
+.etapas-staff { display: grid; gap: 8px; }
+.etapa-staff { display: grid; grid-template-columns: 36px 1fr; gap: 12px; padding: 10px 12px; border-radius: var(--radio-s); border: 2px solid var(--linea); background: var(--panel); }
+.etapa-staff .n { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--borde); background: var(--papel); font-family: var(--display); }
+.etapa-staff.actual { border-color: var(--borde); border-left: 6px solid var(--oro); background: var(--acento-suave); box-shadow: var(--sombra-chica); }
+.etapa-staff.actual .n { background: var(--oro); }
+.etapa-staff .etapa-cab { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.etapa-staff .etapa-cab b { font-family: var(--titulo); font-size: 1.05rem; }
+.etapa-staff p { color: var(--tinta-2); font-size: .92rem; margin-top: 4px; }
+.etapa-staff .quien { font-weight: 800; color: var(--tinta); }
+.tabla-staff { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .92rem; }
+.tabla-staff th, .tabla-staff td { padding: 6px 8px; border-bottom: 2px solid var(--linea); text-align: left; vertical-align: top; }
+.tabla-staff th { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--tinta-3); }
+.tabla-staff .chip { cursor: default; margin: 2px 0; }
+.tabla-staff .chip:active { transform: none; box-shadow: var(--sombra-chica); }
+.posicion { font-style: italic; }
+
 /* ---------- verificación: las dos propuestas de la sala, tema por tema ---------- */
 .verificacion { display: grid; gap: 10px; margin-top: 10px; }
 .verif-tabla { display: grid; gap: 6px; }

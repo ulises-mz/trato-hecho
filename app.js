@@ -435,7 +435,7 @@
     document.body.classList.toggle("presion", estudiante && !!f && f.id === "negociacion" && f.restante <= 60 && !estado.cerrado);
     document.body.classList.toggle("presion-suave", estudiante && !!f && f.id === "negociacion" && f.restante > 60 && f.restante <= 150 && !estado.cerrado);
     vigilarEtapa(); vigilarAvisos();
-    if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); pintarVerificacion(); pintarZoomChip(); }
+    if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); pintarVerificacion(); pintarZoomChip(); pintarEtapasStaff(); }
     if (rutaActual === "entrar" && dentro() && !bloqueada("preparar") && document.querySelector(".espera-linea")) render();
     if (rutaActual === "entrar") { engancharVideo(); if (tics % 4 === 0) pintarListos(); }
     if (++tics % 10 === 0) { pintarVivo(); pintarPresencia(); pintarConectados(); if (rutaActual === "entrar") pintarLobby(); if (estado.nombre && tics % 30 === 0) { anunciar(); if (dentro() && (rutaActual === "preparar" || rutaActual === "negociar" || rutaActual === "cerrar")) reportar({}); } }
@@ -637,6 +637,38 @@
       const nota = document.getElementById("nota-cerrar"); if (nota) { const t = notaCerrar(); if (nota.textContent !== t) nota.textContent = t; }
     }
     const st = document.getElementById("verif-staff"); if (st) { const h = verificacionHTML(estado.staffSala, null); const c = st.querySelector(".verificacion"); if (c && c.outerHTML !== h) c.outerHTML = h; const q = document.getElementById("staff-ahora"); if (q) { const h2 = staffAhoraHTML(); if (q.innerHTML !== h2) q.innerHTML = h2; } }
+  }
+  /* ---------- guía del staff: las etapas y las dos empresas ----------
+     El staff es neutral: ve el caso completo (los dos lados) para resolver dudas de reglas, con la
+     tabla de puntos aparte y marcada como privada. */
+  function etapaStaffActual() {
+    const f = faseActual();
+    if (["preparacion", "negociacion", "cierre"].includes(f)) return f;
+    if (f === "debrief" || f === "fin") return "resultados";
+    if (juegoIniciado()) return "lado";
+    if (armado()) return "equipos";
+    return "entrar";
+  }
+  function etapasStaffHTML() {
+    const t = D.tiempos, vc = esc(videollamada()), S = esc(nombreSala("n")), SC = salaPrivada() ? esc(nombreSalaCliente("n")) : null, actual = etapaStaffActual();
+    const etapas = [
+      { id: "entrar", titulo: "Entrar", dura: "mientras llegan", equipos: "Cada persona escribe su nombre, ve el video de introducción (2 min) y marca «Estoy listo». El administrador ve cuántos están listos.", staff: `Crear las salas de ${vc} con el anfitrión (nombres exactos, abajo). En la web, nada.` },
+      { id: "equipos", titulo: "Equipos", dura: "1 a 2 min", equipos: "El administrador abre el hub y cada quien se une a un equipo de dos o tres (el tamaño sale de cuánta gente hay).", staff: "Nada en la web. Estar en la sala principal." },
+      { id: "lado", titulo: "Lado y sala", dura: "al iniciar", equipos: `«Iniciar juego» asigna a cada equipo agencia o cliente y una sala. Cada pantalla dice a qué sala de ${vc} entrar${SC ? `: la agencia a «${S}», el cliente a «${SC}»` : ""}. Vocero habla, analista lleva la cuenta.`, staff: `Abrir las salas cuando lo diga el administrador y entrar a la suya${SC ? ` (primero «${SC}», luego «${S}»)` : ""}.` },
+      { id: "preparacion", titulo: "Preparación", dura: minutos(t.preparacion) + "utos", equipos: "Ficha privada por pasos: quiénes son, su posición, lo que de verdad les importa, su tabla de puntos y su plan B, la hoja de preparación y el rol. Solo ven su lado.", staff: "Asomarse a las dos salas. Dudas de reglas sí; de estrategia, nunca. Nadie comparte pantalla ni lee puntos." },
+      { id: "negociacion", titulo: "Negociación", dura: minutos(t.negociacion) + "utos", equipos: "La mesa: marcan cada propuesta que se diga (una letra por tema), el termómetro muestra solo sus puntos contra su plan B, piden la palabra. Avisos automáticos a los 3 minutos y en el último minuto.", staff: `Quedarse en «${S}». Mirar que las dos propuestas coincidan (verde) o difieran (rojo). No intervenir en el contenido.` },
+      { id: "cierre", titulo: "Cierre", dura: minutos(t.cierre) + "uto", equipos: "«Trato hecho» solo se habilita si las dos propuestas son idénticas; si no, «Sin acuerdo» con la última propuesta y quién la rechazó. La web lo registra sola.", staff: "Verificar que la sala quede cerrada (el veredicto de arriba lo dice). Después, a la sala principal." },
+      { id: "resultados", titulo: "Resultados", dura: minutos(t.debrief) + "utos", equipos: "El tablero rankea solo con los cierres; el administrador revela los intereses y cada equipo ve los puntos de los dos lados, su índice y su puesto.", staff: "Sala principal. Dos del staff hacen la revelación y el cierre de la exposición." }
+    ];
+    return `<div class="etapas-staff">${etapas.map((e, i) => `<div class="etapa-staff ${e.id === actual ? "actual" : ""}"><span class="n">${i + 1}</span><div><div class="etapa-cab"><b>${esc(e.titulo)}</b><span class="nota-pie">${esc(e.dura)}</span>${e.id === actual ? `<span class="estado ok">ahora</span>` : ""}</div><p><span class="quien">Los equipos:</span> ${esc(e.equipos)}</p><p><span class="quien">El staff:</span> ${esc(e.staff)}</p></div></div>`).join("")}</div>`;
+  }
+  function pintarEtapasStaff() { const z = document.getElementById("etapas-staff"); if (z) { const h = etapasStaffHTML(); if (z.innerHTML !== h) z.innerHTML = h; } }
+  function empresasStaffHTML() {
+    const lado = l => { const L = D.lados[l]; return `<div class="panel ${l}"><span class="cinta ${l}">${esc(L.etiqueta)}</span><h3 style="margin-top:8px">Quiénes son</h3><p>${esc(L.quienes)}</p><h3>Su posición de entrada</h3><p class="posicion">${esc(L.posicion)}</p><h3>Lo que de verdad les importa</h3><ol class="intereses">${L.intereses.map(i => `<li><div><b>${esc(i.titulo)}</b>${esc(i.texto)}</div></li>`).join("")}</ol><h3>Su plan B</h3><p>${esc(L.planB.texto)}</p></div>`; };
+    const temas = `<div class="panel"><h3>Los cinco temas y sus opciones</h3><p class="nota-pie">Esto lo conocen los dos lados: cada opción tiene una letra y el trato es una letra por tema (${D.temas.map(() => "·").join("")} cinco letras).</p><table class="tabla-staff"><thead><tr><th>Tema</th><th>Opciones</th></tr></thead><tbody>${D.temas.map(t => `<tr><td><b>${esc(t.nombre)}</b><br><span class="nota-pie">${esc(t.pregunta)}</span></td><td>${t.opciones.map(o => `<span class="chip" aria-pressed="false"><span class="letra">${esc(o.letra)}</span><span>${esc(o.texto)}</span></span>`).join(" ")}</td></tr>`).join("")}</tbody></table></div>`;
+    const optimo = mejorTrato();
+    const puntos = `<details class="consultar"><summary>Tabla de puntos y plan B · privado: no se le dice a ningún equipo</summary><p class="nota-pie" style="margin:8px 0">Cada lado solo conoce su propia columna. Ustedes la ven completa para entender el juego y el tablero final, no para orientar a nadie.</p><table class="tabla-staff"><thead><tr><th>Tema</th><th>Opción</th><th class="acento-agencia">Agencia</th><th class="acento-cliente">Cliente</th></tr></thead><tbody>${D.temas.map(t => t.opciones.map((o, k) => `<tr>${k === 0 ? `<td rowspan="${t.opciones.length}"><b>${esc(t.nombre)}</b></td>` : ""}<td><span class="mono">${esc(o.letra)}</span> ${esc(o.texto)}</td><td class="acento-agencia">${o.agencia}</td><td class="acento-cliente">${o.cliente}</td></tr>`).join("")).join("")}<tr><td colspan="2"><b>Plan B</b> (lo que le queda a cada lado si no hay trato)</td><td class="acento-agencia"><b>${PLAN_B.agencia}</b></td><td class="acento-cliente"><b>${PLAN_B.cliente}</b></td></tr></tbody></table><div class="panel suave" style="margin-top:10px"><h3>${esc(D.puntaje.titulo)}</h3><ul class="lista">${D.puntaje.lineas.map(x => `<li>${esc(x)}</li>`).join("")}</ul><p class="nota-pie">El mejor trato posible es <span class="mono">${esc(optimo.letras.join(""))}</span>: ${optimo.a} para la agencia y ${optimo.c} para el cliente, índice ${optimo.indice}.</p></div></details>`;
+    return `<div class="panel suave"><span class="ojo">El caso</span><h3>${esc(D.contexto.titulo)}</h3>${D.contexto.parrafos.map(p => `<p>${esc(p)}</p>`).join("")}<p class="nota-pie">Los equipos solo conocen su propio lado. Ustedes ven los dos para resolver dudas de reglas; no cuenten lo del otro lado ni los puntos.</p></div><div class="dos" style="margin-top:12px">${lado("agencia")}${lado("cliente")}</div><div style="margin-top:12px">${temas}</div><div style="margin-top:12px">${puntos}</div>`;
   }
   function staffAhoraHTML() {
     const f = faseActual(), vc = videollamada(), n = estado.staffSala, S = nombreSala(n), SC = salaPrivada() ? nombreSalaCliente(n) : null;
@@ -1589,6 +1621,8 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   <div class="panel suave" id="staff-ahora" style="margin-top:12px">${staffAhoraHTML()}</div>
 </section>
 <section class="seccion" id="zoom-salas">${zoomSalasHTML()}</section>
+<section class="seccion"><div class="cabecera"><div><span class="ojo">Para entender el juego</span><h2>Las etapas, en orden</h2><p class="nota-pie">Lo que ven los equipos en cada una y lo que hace el staff. La actual está marcada.</p></div></div><div id="etapas-staff">${etapasStaffHTML()}</div></section>
+<section class="seccion"><div class="cabecera"><div><span class="ojo">Para resolver dudas</span><h2>Las dos empresas</h2></div></div>${empresasStaffHTML()}</section>
 <section class="seccion"><h2>Todas las salas</h2><div id="vivo">${vivoHTML()}</div></section>
 <section class="seccion"><h2>Qué toca ahora</h2><div class="cues">${cuesHTML()}</div></section>
 <section class="seccion panel suave"><h3>Reglas que vigila el staff</h3><ul class="lista">${D.contexto.reglas.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p class="nota-pie">Dudas de reglas sí; de estrategia no. Si una sala pregunta «¿qué nos conviene?», la respuesta es «pregúntenle a la otra parte para qué lo necesita».</p></section>`;
