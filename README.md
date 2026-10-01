@@ -63,6 +63,22 @@ El mejor trato posible es `BEDCD` (71 / 73, índice 143). Las salas que solo
 regatean el precio se quedan cerca de 113; las que preguntan «¿para qué lo
 necesita?» y cambian lo barato por lo caro pasan de 130.
 
+## Las etapas
+
+La web lleva a cada estudiante por cinco etapas; el reloj del administrador
+(o el del propio equipo, si no hay tablero en vivo) decide cuál toca y la
+pantalla cambia sola, con una transición. Lo que no es de la etapa no se
+muestra; las etapas anteriores se pueden consultar y las siguientes están con
+candado.
+
+| Etapa | Qué hay |
+|---|---|
+| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), lobby con los asientos de cada sala en tiempo real, el rol en la pareja y la asignación que mande el administrador |
+| **Prepararse** | La ficha privada en seis pasos: el caso y las reglas, quiénes son y su posición, lo que les importa, la tabla de puntos y el plan B, la hoja de preparación y su rol. La primera vez se abre el tutorial animado |
+| **Negociar** | La escena de la sala (`escena.js`): los cuatro sentados con nombre y rol, quién tiene la palabra, la última oferta de cada lado como burbuja y el contrato con lo marcado. Debajo, la ronda, los cinco temas, el termómetro, la propuesta, las misiones, los apuntes y «Consultar mi ficha» |
+| **Cerrar** | La propuesta final contra el plan B. «Trato hecho» hace que los voceros se den la mano; «Sin acuerdo» los levanta de la mesa. Sale el código de la sala |
+| **Resultado** | Antes de la revelación, el propio cierre y las preguntas para conversar; cuando el administrador revela, los puntos de los dos lados, el índice, el puesto entre las salas, lo que había del otro lado y las claves |
+
 ## Roles y tablero en vivo
 
 | Rol | Vista | Qué hace |
@@ -173,8 +189,12 @@ lo de esa sesión.
 ## Archivos
 
 ```
-index.html      la web y su hoja de estilo (inicio, ficha, mesa, resultados, admin, staff, guion)
-app.js          lógica: rutas, relojes, calculadora, códigos, tablero, gráfico, en vivo
+index.html      el cascarón: HUD con las etapas, reloj y ayuda
+estilos.css     la hoja de estilo: papel e índigo, oro, menta y lava; modo oscuro; animaciones
+fuentes.css     las fuentes empaquetadas (fuentes/*.woff2): sin depender de Google en clase
+app.js          lógica: etapas, relojes, lobby y reparto, calculadora, códigos, tablero, gráfico, en vivo
+escena.js       la escena SVG de la mesa: asientos, palabra, burbujas, apretón de manos, levantarse
+tutorial.js     el tutorial animado «¿Cómo se juega?» con componentes en miniatura
 datos.js        EL CASO: textos, opciones, puntos, plan B, tiempos. Cambiar aquí
 config.js       LA INSTALACIÓN: motor en vivo (servidor, local o Firebase), nombre de sesión, clave, salas
 sync.js         canal en vivo: servidor propio (REST + SSE), Firebase o localStorage
@@ -232,6 +252,9 @@ La mesa se juega como un laboratorio:
 
 ## El video
 
+**Muestra la interfaz anterior** (pestañas Mi ficha y Mesa). Hay que
+regrabarlo con el guion adaptado a las etapas; el pipeline sigue sirviendo.
+
 [`../video/como-jugar.mp4`](../video/como-jugar.mp4) (1:57, 1280×720) explica
 cómo jugar según el rol, con voz en off y subtítulos (`como-jugar.srt`). Las
 fuentes están en `../video/`: guion, línea de tiempo y la animación en HTML
@@ -251,6 +274,10 @@ python3 puntuar.py --optimo
 ```
 
 ## Regenerar los PDF y las capturas
+
+`herramientas/capturas.js` usa los selectores de la interfaz anterior; las
+capturas del README del hub se tomaron con la prueba de punta a punta
+(`prueba-v2.js` en el cuaderno de la sesión). Hay que actualizar el script.
 
 ```bash
 cd herramientas && npm i playwright && npx playwright install chromium && cd ..
