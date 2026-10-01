@@ -174,6 +174,30 @@
   const nombreSala = n => (C.sala || "Sala {n}").replace("{n}", n);
   const nombreSalaCliente = n => C.salaCliente ? C.salaCliente.replace("{n}", n) : null;
   const salaPrivada = () => !!C.salaCliente;
+  /* En qué sala de la videollamada debe estar este equipo AHORA: el cliente se prepara aparte y pasa a la
+     mesa cuando empieza la negociación. Se muestra como cinta persistente en Prepararse, La mesa y Cerrar. */
+  function salaZoomActual() {
+    if (!estado.sala) return null;
+    const prep = ["espera", "cuenta", "consigna", "preparacion"].includes(faseActual());
+    return estado.lado === "cliente" && salaPrivada() && prep ? nombreSalaCliente(estado.sala) : nombreSala(estado.sala);
+  }
+  function zoomChipHTML() { const s = salaZoomActual(); return s ? `<span class="cinta zoom" title="Sala de ${esc(videollamada())} en la que deben estar ahora">${Iconos.svg("users")} ${esc(videollamada())}: ${esc(s)}</span>` : ""; }
+  function pintarZoomChip() { document.querySelectorAll(".cinta.zoom").forEach(z => { const h = zoomChipHTML(); if (h && z.outerHTML !== h) z.outerHTML = h; }); }
+  /* Cómo se crean las salas de la videollamada y quién va a cuál. Lo ven Admin, Staff y Guion: el staff
+     ayuda a crearlas al inicio de la clase. */
+  function zoomSalasHTML() {
+    const n = C.salas || 5, vc = esc(videollamada()), nombres = [];
+    for (let i = 1; i <= n; i++) { nombres.push(nombreSala(i)); if (salaPrivada()) nombres.push(nombreSalaCliente(i)); }
+    return `<div class="panel zoom-salas"><span class="ojo">${vc}</span><h3>Crear las salas, entre todo el staff</h3>
+<ol class="pasos">
+  <li>El anfitrión (el profe, o quien tenga el control de la reunión) hace <b>coanfitriones</b> al administrador y al staff.</li>
+  <li>Abrir <b>Salas para grupos pequeños</b> → crear <b>${nombres.length} salas</b> con «Permitir que los participantes elijan sala».</li>
+  <li>Renombrarlas <b>exactamente así</b> (uno dicta, otro escribe; la web usa estos nombres):<div class="salas-nombres">${nombres.map(x => `<span class="chip" aria-pressed="false"><span>${esc(x)}</span></span>`).join("")}</div></li>
+  <li>En <b>Opciones</b>: «Permitir que los participantes elijan sala» y «Permitir que los participantes regresen a la sesión principal» marcadas; <b>sin</b> cierre automático por tiempo; cuenta regresiva al cerrar: 60 segundos.</li>
+  <li><b>Abrir todas las salas</b> cuando el administrador lo indique (minuto 0:45 de la guía). Cada quien entra a la sala que le dice la web; la lista «Quién va a cada sala» de Admin sirve para revisar y mover a quien se equivoque.</li>
+</ol>
+<p class="nota-pie">${salaPrivada() ? `La agencia se prepara en «${esc(nombreSala("n"))}», que es también la mesa; el cliente se prepara en privado en «${esc(nombreSalaCliente("n"))}» y pasa a «${esc(nombreSala("n"))}» cuando empieza la negociación. La web se lo dice a cada equipo en el momento justo; el staff solo refuerza.` : `Los dos equipos de cada mesa comparten «${esc(nombreSala("n"))}».`}</p></div>`;
+  }
   function indicacionSala(n, lado) {
     const vc = videollamada();
     if (lado === "cliente" && salaPrivada()) return `Entrá a «${nombreSalaCliente(n)}» en ${vc}: ahí se preparan en privado. Cuando empiece la negociación, pasan a «${nombreSala(n)}», donde los espera la agencia.`;
@@ -411,7 +435,7 @@
     document.body.classList.toggle("presion", estudiante && !!f && f.id === "negociacion" && f.restante <= 60 && !estado.cerrado);
     document.body.classList.toggle("presion-suave", estudiante && !!f && f.id === "negociacion" && f.restante > 60 && f.restante <= 150 && !estado.cerrado);
     vigilarEtapa(); vigilarAvisos();
-    if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); pintarVerificacion(); }
+    if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); pintarVerificacion(); pintarZoomChip(); }
     if (rutaActual === "entrar" && dentro() && !bloqueada("preparar") && document.querySelector(".espera-linea")) render();
     if (rutaActual === "entrar") { engancharVideo(); if (tics % 4 === 0) pintarListos(); }
     if (++tics % 10 === 0) { pintarVivo(); pintarPresencia(); pintarConectados(); if (rutaActual === "entrar") pintarLobby(); if (estado.nombre && tics % 30 === 0) { anunciar(); if (dentro() && (rutaActual === "preparar" || rutaActual === "negociar" || rutaActual === "cerrar")) reportar({}); } }
@@ -615,18 +639,22 @@
     const st = document.getElementById("verif-staff"); if (st) { const h = verificacionHTML(estado.staffSala, null); const c = st.querySelector(".verificacion"); if (c && c.outerHTML !== h) c.outerHTML = h; const q = document.getElementById("staff-ahora"); if (q) { const h2 = staffAhoraHTML(); if (q.innerHTML !== h2) q.innerHTML = h2; } }
   }
   function staffAhoraHTML() {
-    const f = faseActual(), vc = videollamada();
+    const f = faseActual(), vc = videollamada(), n = estado.staffSala, S = nombreSala(n), SC = salaPrivada() ? nombreSalaCliente(n) : null;
+    const donde = {   // en qué sala de la videollamada debe estar el staff ahora
+      espera: "Sala principal: ayude a crear las salas (pasos abajo)", cuenta: SC ? `«${SC}» primero, luego «${S}»` : `«${S}»`, consigna: SC ? `«${SC}» primero, luego «${S}»` : `«${S}»`,
+      preparacion: SC ? `«${SC}» (2 min) y después «${S}»` : `«${S}»`, negociacion: `«${S}»`, cierre: `«${S}» hasta que quede cerrada`, debrief: "Sala principal", fin: "Sala principal"
+    };
     const pasos = {
-      espera: ["Elija arriba el número de su sala: todo lo que ve aquí es de esa sala.", "Cuando el administrador abra las salas en " + vc + ", entre a la suya."],
-      cuenta: ["Entre a su sala de " + vc + ". Los equipos están recibiendo su sala y su lado."],
-      consigna: ["Confirme que en su sala de " + vc + " estén los dos equipos: agencia y cliente."],
-      preparacion: ["Los equipos leen su ficha privada. Dudas de reglas sí; de estrategia, nunca.", "Nadie comparte pantalla ni lee sus puntos en voz alta.", "Cada equipo está en su propia sala de " + vc + (salaPrivada() ? "; el cliente llega a «" + nombreSala(estado.staffSala) + "» cuando empiece la negociación." : ".")],
-      negociacion: ["Mire las dos propuestas: verde donde coinciden, rojo donde no. No intervenga en el contenido.", "Si preguntan «¿qué nos conviene?»: «pregúntenle a la otra parte para qué lo necesita».", "Los avisos de tiempo salen solos en todas las pantallas."],
-      cierre: ["«Trato hecho» solo se habilita si las dos propuestas son idénticas. Si no coinciden, que revisen los temas en rojo o registren «Sin acuerdo».", "Antes de volver a la sala principal, confirme que la sala quede cerrada."],
+      espera: ["Elija arriba el número de su sala: todo lo que ve aquí es de esa sala.", "Ayude a crear las salas de " + vc + " con los nombres exactos (pasos abajo). Cuando se abran, entre a la suya."],
+      cuenta: [SC ? `Entre a «${SC}»: confirme que esté el equipo cliente. Luego pase a «${S}» con la agencia.` : `Entre a «${S}». Los equipos están recibiendo su sala y su lado.`],
+      consigna: [SC ? `Entre a «${SC}» y confirme que esté el equipo cliente; luego pase a «${S}» con la agencia.` : `Confirme que en «${S}» estén los dos equipos.`],
+      preparacion: ["Los equipos leen su ficha privada. Dudas de reglas sí; de estrategia, nunca.", "Nadie comparte pantalla ni lee sus puntos en voz alta.", SC ? `Asómese a las dos salas: primero «${SC}», después «${S}». El cliente pasa solo a «${S}» cuando empiece la negociación: la web se lo dice.` : `Los dos equipos están en «${S}».`],
+      negociacion: [`Quédese en «${S}». Mire las dos propuestas: verde donde coinciden, rojo donde no. No intervenga en el contenido.`, "Si preguntan «¿qué nos conviene?»: «pregúntenle a la otra parte para qué lo necesita».", "Los avisos de tiempo salen solos en todas las pantallas."],
+      cierre: ["«Trato hecho» solo se habilita si las dos propuestas son idénticas. Si no coinciden, que revisen los temas en rojo o registren «Sin acuerdo».", `Siga en «${S}» hasta que la sala quede cerrada; después, a la sala principal.`],
       debrief: ["Sala cerrada o fuera de tiempo. Vuelva a la sala principal para los resultados."],
       fin: ["Vuelva a la sala principal para los resultados."]
     };
-    return `<span class="ojo">Qué hace el staff ahora</span><ul class="lista" style="margin-top:6px">${(pasos[f] || pasos.espera).map(p => `<li>${esc(p)}</li>`).join("")}</ul>`;
+    return `<div class="cabecera" style="margin-bottom:6px"><span class="ojo">Qué hace el staff ahora</span><span class="cinta zoom">${Iconos.svg("users")} ${esc(vc)} ahora: ${esc(donde[f] || donde.espera)}</span></div><ul class="lista">${(pasos[f] || pasos.espera).map(p => `<li>${esc(p)}</li>`).join("")}</ul>`;
   }
   function actaDe(n) {
     const remota = enVivo() && vivo.salas && vivo.salas[n] && vivo.salas[n].acta;
@@ -1111,7 +1139,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
 <section class="pantalla">
   <div class="pantalla-cab">
     <div class="textos">
-      <span class="cinta ${l}">Sala ${estado.sala} en ${esc(videollamada())} · ficha privada · ${ico(R.icono)} ${esc(R.nombre)}</span>
+      <span class="cinta ${l}">Sala ${estado.sala} · ficha privada · ${ico(R.icono)} ${esc(R.nombre)}</span>${zoomChipHTML()}
       <h1 class="titulo-lado ${l}">Ustedes son <em>${esc(L.nombre)}</em></h1>
       <p class="entrada">${esc(L.rol)}. Solo para su lado: no la compartan ni la lean en voz alta. Recorran los seis pasos; la mesa se abre cuando termine la preparación.</p>
     </div>
@@ -1158,7 +1186,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     return `
 <section class="pantalla">
   <div class="pantalla-cab">
-    <div class="textos"><span class="cinta ${l}">Sala ${estado.sala} · ${esc(L.etiqueta)}</span><h1>La mesa</h1><p class="entrada">Marquen cada propuesta que se diga para ver cuánto vale para ustedes. Los puntos son solo suyos. Cuando haya trato, o cuando decidan levantarse, pasan a Cerrar.</p></div>
+    <div class="textos"><span class="cinta ${l}">Sala ${estado.sala} · ${esc(L.etiqueta)}</span>${zoomChipHTML()}<h1>La mesa</h1><p class="entrada">Marquen cada propuesta que se diga para ver cuánto vale para ustedes. Los puntos son solo suyos. Cuando haya trato, o cuando decidan levantarse, pasan a Cerrar.</p></div>
     ${relojHTML("equipo", "")}
   </div>
   <div class="mesa-escena" id="escena-caja"></div>
@@ -1213,7 +1241,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     }
     return `
 <section class="pantalla">
-  <div class="pantalla-cab"><div class="textos"><span class="cinta ${l}">Sala ${estado.sala} · ${esc(L.etiqueta)}</span><h1>Cerrar</h1><p class="entrada">Esto es lo que hay sobre la mesa. Si las dos partes dicen «trato hecho», confírmenlo aquí. Si lo que hay es peor que su plan B, levántense: también es negociar bien.</p></div>${relojHTML("equipo", "")}</div>
+  <div class="pantalla-cab"><div class="textos"><span class="cinta ${l}">Sala ${estado.sala} · ${esc(L.etiqueta)}</span>${zoomChipHTML()}<h1>Cerrar</h1><p class="entrada">Esto es lo que hay sobre la mesa. Si las dos partes dicen «trato hecho», confírmenlo aquí. Si lo que hay es peor que su plan B, levántense: también es negociar bien.</p></div>${relojHTML("equipo", "")}</div>
   <div class="mesa-escena" id="escena-caja"></div>
   <div class="dos">
     <div class="panel"><span class="ojo">Propuesta final</span><div class="cierre-resumen" style="margin-top:8px">${D.temas.map((t, i) => { const o = letras[i] ? opcionDe(i, letras[i]) : null; return `<div class="cierre-fila"><div><span class="nota-pie">${esc(t.nombre)}</span><br>${o ? `<b>${esc(o.texto)}</b>` : `<span class="nota-pie">sin acordar</span>`}</div>${o ? `<span class="pts">+${o[l]}</span>` : ""}</div>`; }).join("")}</div>
@@ -1527,6 +1555,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   <h2>Qué toca ahora</h2>
   <div class="cues">${cuesHTML()}</div>
 </section>
+<section class="seccion">${zoomSalasHTML()}</section>
 <section class="seccion dos">
   <div class="panel"><h3>${esc(videollamada())}, en orden</h3><ol class="pasos">
     <li>Antes de empezar: que el profe haga coanfitriones al administrador y al staff, o que sea él quien abra las salas.</li>
@@ -1559,6 +1588,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   ${verificacionHTML(estado.staffSala, null)}
   <div class="panel suave" id="staff-ahora" style="margin-top:12px">${staffAhoraHTML()}</div>
 </section>
+<section class="seccion" id="zoom-salas">${zoomSalasHTML()}</section>
 <section class="seccion"><h2>Todas las salas</h2><div id="vivo">${vivoHTML()}</div></section>
 <section class="seccion"><h2>Qué toca ahora</h2><div class="cues">${cuesHTML()}</div></section>
 <section class="seccion panel suave"><h3>Reglas que vigila el staff</h3><ul class="lista">${D.contexto.reglas.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p class="nota-pie">Dudas de reglas sí; de estrategia no. Si una sala pregunta «¿qué nos conviene?», la respuesta es «pregúntenle a la otra parte para qué lo necesita».</p></section>`;
@@ -1604,6 +1634,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     <li>Ensayar una vez con reloj y con el tablero en vivo. Lo que no cabe en el tiempo se recorta antes, no en vivo.</li>
   </ul>
 </section>
+<section class="seccion">${zoomSalasHTML()}</section>
 <section class="seccion">
   <h2>Minuto a minuto</h2>
   <div class="linea-tiempo panel">

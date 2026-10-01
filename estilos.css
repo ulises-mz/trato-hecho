@@ -434,6 +434,13 @@ textarea { min-height: 70px; resize: vertical; }
 @keyframes caer-aviso { from { transform: translate(-50%, -30px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 @keyframes subir-aviso { to { transform: translate(-50%, -30px); opacity: 0; } }
 
+/* ---------- salas de la videollamada: cinta persistente y panel de creación ---------- */
+.cinta.zoom { background: var(--panel); color: var(--tinta); margin-left: 6px; }
+.cinta.zoom .ico { width: 1em; height: 1em; }
+.zoom-salas .salas-nombres { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.zoom-salas .chip { cursor: default; }
+.zoom-salas .chip:active { transform: none; box-shadow: var(--sombra-chica); }
+
 /* ---------- verificación: las dos propuestas de la sala, tema por tema ---------- */
 .verificacion { display: grid; gap: 10px; margin-top: 10px; }
 .verif-tabla { display: grid; gap: 6px; }
