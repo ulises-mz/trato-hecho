@@ -21,54 +21,18 @@
   --texto: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   --radio: 18px; --radio-s: 12px; --radio-xs: 8px;
+  color-scheme: light;
   --agencia: var(--orbita); --agencia-2: var(--orbita-2); --agencia-suave: var(--orbita-suave);
   --cliente: var(--volcan); --cliente-2: var(--volcan-2); --cliente-suave: var(--volcan-suave);
   --acento: var(--oro); --acento-tinta: var(--oro-tinta); --acento-suave: #fff1c9;
   --ok: var(--menta-2); --ok-suave: var(--menta-suave); --mal: var(--lava); --mal-suave: var(--lava-suave);
   --superficie: var(--panel); --superficie-2: var(--panel-2); --superficie-3: var(--panel-2); --linea: #d9cdb2; --linea-2: #b9ab8c; --fondo: var(--papel);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --papel: #0e1020; --papel-2: #151834; --panel: #1b1f3b; --panel-2: #232849; --panel-3: #2b3157;
-    --tinta: #f3efff; --tinta-2: #c3bfe0; --tinta-3: #8e8bb0;
-    --borde: #3b3f66; --sombra-c: #07081a; --destacado: #4a3f12; --piel: #f3c89e;
-    --oro: #ffc43d; --oro-2: #f4a900; --oro-tinta: #1c1b33; --acento-suave: #3d3312;
-    --menta: #3ad69c; --menta-2: #27b07c; --menta-suave: #16382c;
-    --lava: #ff6a46; --lava-2: #d64d2c; --lava-suave: #4a2219;
-    --cielo: #5cc4ff; --cielo-suave: #16324a; --aviso: #ffb340; --aviso-suave: #46350f;
-    --orbita: #9a8cff; --orbita-2: #7c6cf0; --orbita-suave: #2a2560;
-    --volcan: #ff9a3c; --volcan-2: #e07a1f; --volcan-suave: #4a2d12;
-    --felt: #1f6b4e; --felt-2: #124a35; --madera: #8a5a2b; --madera-2: #5a3818;
-    --linea: #2e3356; --linea-2: #474d78;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --papel: #0e1020; --papel-2: #151834; --panel: #1b1f3b; --panel-2: #232849; --panel-3: #2b3157;
-  --tinta: #f3efff; --tinta-2: #c3bfe0; --tinta-3: #8e8bb0;
-  --borde: #3b3f66; --sombra-c: #07081a; --destacado: #4a3f12; --piel: #f3c89e;
-  --oro: #ffc43d; --oro-2: #f4a900; --oro-tinta: #1c1b33; --acento-suave: #3d3312;
-  --menta: #3ad69c; --menta-2: #27b07c; --menta-suave: #16382c;
-  --lava: #ff6a46; --lava-2: #d64d2c; --lava-suave: #4a2219;
-  --cielo: #5cc4ff; --cielo-suave: #16324a; --aviso: #ffb340; --aviso-suave: #46350f;
-  --orbita: #9a8cff; --orbita-2: #7c6cf0; --orbita-suave: #2a2560;
-  --volcan: #ff9a3c; --volcan-2: #e07a1f; --volcan-suave: #4a2d12;
-  --felt: #1f6b4e; --felt-2: #124a35; --madera: #8a5a2b; --madera-2: #5a3818;
-  --linea: #2e3356; --linea-2: #474d78;
-  color-scheme: dark;
-}
-
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--papel); color: var(--tinta); font-family: var(--texto); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; min-height: 100vh; position: relative; overflow-x: hidden; }
-/* fondo: arena con dos luces que respiran despacio (calma) */
-body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(700px 500px at 12% 8%, color-mix(in srgb, var(--orbita) 18%, transparent), transparent 70%),
-              radial-gradient(640px 460px at 88% 92%, color-mix(in srgb, var(--volcan) 16%, transparent), transparent 70%),
-              repeating-linear-gradient(0deg, transparent 0 38px, color-mix(in srgb, var(--borde) 5%, transparent) 38px 39px),
-              repeating-linear-gradient(90deg, transparent 0 38px, color-mix(in srgb, var(--borde) 5%, transparent) 38px 39px); }
-@media (prefers-reduced-motion: no-preference) { body::before { animation: respirar 14s ease-in-out infinite alternate; } }
-@keyframes respirar { from { opacity: .75; } to { opacity: 1; } }
+/* fondo: papel liso, apenas más claro arriba. Sin tramas ni luces de color. */
+body { background: linear-gradient(180deg, #faf5ec 0, var(--papel) 360px) fixed; }
 /* presión: viñeta roja que late cuando queda poco tiempo */
 body::after { content: ""; position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0; box-shadow: inset 0 0 140px 30px color-mix(in srgb, var(--lava) 55%, transparent); transition: opacity .6s; }
 body.presion::after { opacity: 1; animation: latir 1s ease-in-out infinite; }
@@ -120,7 +84,7 @@ code, .mono { font-family: var(--mono); }
 .etapa-nodo.actual { color: var(--tinta); }
 .etapa-nodo.actual .num { background: var(--oro); color: var(--oro-tinta); box-shadow: 0 0 0 4px color-mix(in srgb, var(--oro) 35%, transparent); }
 .etapa-nodo.bloqueada { cursor: not-allowed; opacity: .55; }
-.etapa-nodo.bloqueada .num::before { content: "🔒"; font-size: .6rem; }
+.etapa-nodo.bloqueada .num::before { content: ""; width: 11px; height: 11px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c1b33' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E") center / contain no-repeat; }
 @media (max-width: 720px) { .etapa-nodo .etiqueta { display: none; } .etapa-nodo.actual .etiqueta { display: inline; } }
 .hud-reloj { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 800; font-size: .88rem; padding: 4px 10px; margin-left: auto; border-radius: 10px; border: 2px solid var(--borde); background: var(--tinta); color: var(--papel); white-space: nowrap; box-shadow: var(--sombra-chica); }
 .hud-reloj.alerta { background: var(--lava); color: #fff; border-color: var(--lava-2); animation: temblar .5s infinite; }
@@ -646,3 +610,11 @@ td.max { font-weight: 800; color: var(--menta-2); }
 .boton[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 .pantalla-cab .cinta { justify-self: start; }
 .ficha-identidad .puesto { margin-top: 4px; }
+/* ---------- iconos de línea ---------- */
+.ico { width: 1.1em; height: 1.1em; vertical-align: -.2em; display: inline-block; flex: 0 0 auto; }
+.ico-grande { width: 2.2rem; height: 2.2rem; vertical-align: middle; }
+.tareas-rol .icono .ico { width: 22px; height: 22px; vertical-align: middle; }
+.boton .ico { margin-right: 2px; }
+.cinta .ico { width: 1em; height: 1em; }
+.mano .ico-grande { width: 2.4rem; height: 2.4rem; color: var(--tinta); }
+.mini-cierre .emoji, .mini-roles .emoji { color: var(--tinta); line-height: 1; display: inline-flex; }

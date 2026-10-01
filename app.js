@@ -6,24 +6,25 @@
    la web cambia sola, con una transición; lo que no es de la etapa no se muestra. */
 (function () {
   "use strict";
-  const D = window.DATOS, C = window.CONFIG || {}, Sync = window.Sync, Escena = window.Escena, Tutorial = window.Tutorial;
+  const D = window.DATOS, C = window.CONFIG || {}, Sync = window.Sync, Escena = window.Escena, Tutorial = window.Tutorial, Iconos = window.Iconos;
+  const ico = (n, c) => Iconos.svg(n, c);
   const LADOS = ["agencia", "cliente"];
   const NOMBRE_QUIEN = { A: "la agencia", C: "el cliente", T: "se acabó el tiempo" };
   const ROLES = {
-    vocero: { nombre: "Vocero", corto: "habla", icono: "🎙️", titulo: "Usted es el vocero", tareas: [
-      ["🗣️", "Abra con la posición inicial, tal cual está escrita en la ficha."],
-      ["❓", "Antes de ofrecer nada, pregunte para qué necesita el otro lado lo que pide."],
-      ["🔁", "Cada concesión se cambia por algo: «si les damos esto, ¿qué nos pueden dar?»."],
-      ["🤐", "Nunca diga sus puntos ni su plan B exacto."] ] },
-    analista: { nombre: "Analista", corto: "lleva la cuenta", icono: "🧮", titulo: "Usted es el analista", tareas: [
-      ["👆", "Marque en la mesa cada propuesta que se diga, para ver cuánto vale para ustedes."],
-      ["🌡️", "Vigile el termómetro: nada por debajo del plan B."],
-      ["📝", "Guarde las ofertas en el registro y anote qué le importa al otro lado."],
-      ["💬", "Avísele al vocero por chat privado de Zoom qué conviene pedir."] ] },
-    ambos: { nombre: "Los dos", corto: "habla y lleva la cuenta", icono: "🎙️🧮", titulo: "Usted hace de vocero y analista", tareas: [
-      ["🗣️", "Abra con la posición inicial y pregunte para qué necesita el otro lado lo que pide."],
-      ["👆", "Marque en la mesa cada propuesta y vigile el termómetro contra el plan B."],
-      ["🔁", "Cambie cada concesión por algo y nunca diga sus puntos."] ] }
+    vocero: { nombre: "Vocero", corto: "habla", icono: "mic", titulo: "Usted es el vocero", tareas: [
+      ["speak", "Abra con la posición inicial, tal cual está escrita en la ficha."],
+      ["question", "Antes de ofrecer nada, pregunte para qué necesita el otro lado lo que pide."],
+      ["swap", "Cada concesión se cambia por algo: «si les damos esto, ¿qué nos pueden dar?»."],
+      ["hush", "Nunca diga sus puntos ni su plan B exacto."] ] },
+    analista: { nombre: "Analista", corto: "lleva la cuenta", icono: "calc", titulo: "Usted es el analista", tareas: [
+      ["tap", "Marque en la mesa cada propuesta que se diga, para ver cuánto vale para ustedes."],
+      ["thermometer", "Vigile el termómetro: nada por debajo del plan B."],
+      ["note", "Guarde las ofertas en el registro y anote qué le importa al otro lado."],
+      ["chat", "Avísele al vocero por chat privado de Zoom qué conviene pedir."] ] },
+    ambos: { nombre: "Los dos", corto: "habla y lleva la cuenta", icono: "users", titulo: "Usted hace de vocero y analista", tareas: [
+      ["speak", "Abra con la posición inicial y pregunte para qué necesita el otro lado lo que pide."],
+      ["tap", "Marque en la mesa cada propuesta y vigile el termómetro contra el plan B."],
+      ["swap", "Cambie cada concesión por algo y nunca diga sus puntos."] ] }
   };
   const PRESETS_EQUIPO = ["Preguntaron para qué", "Les importa el plazo", "Les importa el pago", "Les importa el soporte", "Les importa el reconocimiento", "Pidieron tiempo"];
   const PRESETS_STAFF = ["Preguntaron para qué", "Ofrecieron un cambio", "Solo hablan de precio", "Alguien mostró su tabla", "Se trabaron", "Casi cierran"];
@@ -688,7 +689,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     <h2>${yaDentro ? "Cambiar de lugar" : "Sentate en tu sala"}</h2>
     <p>Tocá el lado que te tocó en tu sala de Zoom y elegí tu rol en la pareja. Ves llegar a los demás en tiempo real.</p>
     <div class="campo" style="margin-top:12px"><span>Mi rol en la pareja</span>
-      <div class="roles">${Object.entries(ROLES).map(([k, r]) => `<button type="button" class="rol-boton" data-rol="${k}" aria-pressed="${estado.rol === k}"><b>${esc(r.icono)} ${esc(r.nombre)}</b><span>${esc(k === "ambos" ? "estoy solo en mi lado" : r.corto)}</span></button>`).join("")}</div>
+      <div class="roles">${Object.entries(ROLES).map(([k, r]) => `<button type="button" class="rol-boton" data-rol="${k}" aria-pressed="${estado.rol === k}"><b>${ico(r.icono)} ${esc(r.nombre)}</b><span>${esc(k === "ambos" ? "estoy solo en mi lado" : r.corto)}</span></button>`).join("")}</div>
     </div>
     <div class="campo" style="margin-top:14px"><span>Mi sala y mi lado</span><div id="lobby">${lobbyHTML()}</div></div>
     <div class="botones" style="margin-top:14px"><button type="button" class="boton oro grande" id="btn-entrar" disabled>Elija una sala y un lado</button><span class="nota-pie">La ficha del otro lado no se muestra. Juego limpio.</span></div>
@@ -713,7 +714,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
       { id: "intereses", titulo: "Lo que de verdad les importa", estado: "leer", html: `<p class="nota-pie">En orden. La otra parte no lo sabe: detrás de cada posición hay un interés, y ahí está el valor.</p><ol class="intereses">${L.intereses.map(i => `<li><div><b>${esc(i.titulo)}</b>${esc(i.texto)}</div></li>`).join("")}</ol><div class="panel suave plano"><h3>Consejos</h3><ul class="lista">${L.consejos.map(c => `<li>${esc(c)}</li>`).join("")}</ul></div>` },
       { id: "puntos", titulo: "Su tabla de puntos y su plan B", estado: "leer", html: `<div class="panel suave plano plan-b"><div class="numero">${L.planB.puntos}<small>Plan B</small></div><div><p>${esc(L.planB.texto)}</p><p><b>${esc(L.planB.aviso)}</b></p></div></div><p class="nota-pie">Cada opción vale lo que dice aquí para ustedes. El máximo son 100. En verde, la mejor opción de cada tema.</p><div class="tabla-envoltorio"><table><thead><tr><th>Tema</th><th>Opción</th><th class="num">Puntos</th></tr></thead><tbody>${filasTabla}</tbody></table></div><div class="dos"><div><h3>Qué defender</h3><div class="monedas">${defender.map(p => `<div class="moneda defender"><div><b>${esc(p.nombre)}</b><br><span class="nota-pie">aquí están sus puntos</span></div><span class="peso">${p.peso}</span></div>`).join("")}</div></div><div><h3>Qué cambiar por algo</h3><div class="monedas">${cambiar.map(p => `<div class="moneda cambiar"><div><b>${esc(p.nombre)}</b><br><span class="nota-pie">les cuesta poco: cóbrenlo</span></div><span class="peso">${p.peso}</span></div>`).join("")}</div></div></div>` },
       { id: "hoja", titulo: "Hoja de preparación", estado: respuestas + "/3 respuestas", hecha: respuestas >= 2, html: `<p class="nota-pie">Tres respuestas cortas, entre los dos. Con dos ya cumplen la primera misión. Se guardan en este dispositivo.</p><div class="hoja">${L.preparacion.map(p => `<label class="campo" for="prep-${p.id}">${esc(p.pregunta)}<textarea id="prep-${p.id}" data-prep="${p.id}">${esc(notas[p.id] || "")}</textarea></label>`).join("")}</div>` },
-      { id: "rol", titulo: "Su rol en la mesa: " + R.nombre, estado: "ver", html: `<div class="panel plano trabajo"><span class="ojo">${esc(R.titulo)}</span><ul class="tareas-rol">${R.tareas.map(([ic, t]) => `<li><span class="icono">${ic}</span><span>${esc(t)}</span></li>`).join("")}</ul></div><div class="dos"><div class="panel suave plano"><h3>Preguntas que abren la mesa</h3><ul class="lista"><li>«¿Para qué lo necesitan así?»</li><li>«De todo esto, ¿qué es lo que más les importa?»</li><li>«Si cedemos en eso, ¿qué nos pueden dar a cambio?»</li></ul></div><div class="panel suave plano"><h3>No decir</h3><ul class="lista"><li>Sus puntos, ni los de ninguna opción.</li><li>El plan B exacto. «Tenemos otra opción» es suficiente.</li><li>Un «sí» antes de preguntar qué dan a cambio.</li></ul></div></div><div class="botones"><button type="button" class="boton oro" data-tutorial>Ver cómo se juega, animado</button></div>` }
+      { id: "rol", titulo: "Su rol en la mesa: " + R.nombre, estado: "ver", html: `<div class="panel plano trabajo"><span class="ojo">${esc(R.titulo)}</span><ul class="tareas-rol">${R.tareas.map(([ic, t]) => `<li><span class="icono">${ico(ic)}</span><span>${esc(t)}</span></li>`).join("")}</ul></div><div class="dos"><div class="panel suave plano"><h3>Preguntas que abren la mesa</h3><ul class="lista"><li>«¿Para qué lo necesitan así?»</li><li>«De todo esto, ¿qué es lo que más les importa?»</li><li>«Si cedemos en eso, ¿qué nos pueden dar a cambio?»</li></ul></div><div class="panel suave plano"><h3>No decir</h3><ul class="lista"><li>Sus puntos, ni los de ninguna opción.</li><li>El plan B exacto. «Tenemos otra opción» es suficiente.</li><li>Un «sí» antes de preguntar qué dan a cambio.</li></ul></div></div><div class="botones"><button type="button" class="boton oro" data-tutorial>Ver cómo se juega, animado</button></div>` }
     ];
   }
   function vistaPreparar() {
@@ -727,7 +728,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
 <section class="pantalla">
   <div class="pantalla-cab">
     <div class="textos">
-      <span class="cinta ${l}">Sala ${estado.sala} · ficha privada · ${esc(R.icono)} ${esc(R.nombre)}</span>
+      <span class="cinta ${l}">Sala ${estado.sala} · ficha privada · ${ico(R.icono)} ${esc(R.nombre)}</span>
       <h1 class="titulo-lado ${l}">Ustedes son <em>${esc(L.nombre)}</em></h1>
       <p class="entrada">${esc(L.rol)}. Solo para su lado: no la compartan ni la lean en voz alta. Recorran los seis pasos; la mesa se abre cuando termine la preparación.</p>
     </div>
@@ -736,7 +737,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
   ${presenciaHTML()}
   <div class="progreso-prep"><span>Preparación</span><div class="barra-pts"><div class="lleno" style="width:${Math.round(listos / pasos.length * 100)}%"></div></div><span id="prep-conteo">${listos} de ${pasos.length}</span></div>
   <div class="pasos-prep">${pasos.map((p, i) => `<details class="paso ${p.hecha || vistos.includes(p.id) ? "lista" : ""}" data-paso="${p.id}" ${p.id === abierto.id ? "open" : ""}><summary><span class="paso-num">${i + 1}</span><span>${esc(p.titulo)}</span><span class="paso-estado">${p.hecha ? "lista" : esc(p.estado)}</span></summary><div class="paso-cuerpo">${p.html}</div></details>`).join("")}</div>
-  <div class="botones"><a class="boton oro grande ${bloq ? "bloqueado" : ""}" href="#negociar" data-etapa="negociar" ${bloq ? 'aria-disabled="true"' : ""}>${bloq ? "🔒 La mesa se abre al terminar la preparación" : "Ir a la mesa"}</a><button type="button" class="boton fantasma" id="btn-salir">Cambiar de sala, lado o rol</button></div>
+  <div class="botones"><a class="boton oro grande ${bloq ? "bloqueado" : ""}" href="#negociar" data-etapa="negociar" ${bloq ? 'aria-disabled="true"' : ""}>${bloq ? ico("lock") + " La mesa se abre al terminar la preparación" : "Ir a la mesa"}</a><button type="button" class="boton fantasma" id="btn-salir">Cambiar de sala, lado o rol</button></div>
 </section>`;
   }
 
@@ -753,7 +754,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
   function consultarHTML() {
     const l = estado.lado, L = D.lados[l], notas = leerS("prep." + l, {});
     const pesos = D.temas.map((t, i) => ({ i, nombre: t.nombre, peso: pesoDe(i, l) })).sort((a, b) => b.peso - a.peso);
-    return `<details class="consultar"><summary><span>📖 Consultar mi ficha</span><span class="nota-pie">intereses · guion · plan B · mi hoja</span></summary><div class="consultar-cuerpo">
+    return `<details class="consultar"><summary><span>${ico("book")} Consultar mi ficha</span><span class="nota-pie">intereses · guion · plan B · mi hoja</span></summary><div class="consultar-cuerpo">
   <div><span class="ojo">Lo que nos importa</span><ol class="intereses" style="margin-top:8px">${L.intereses.map(i => `<li><div><b>${esc(i.titulo)}</b></div></li>`).join("")}</ol></div>
   <div><span class="ojo">Qué decir</span><ul class="lista" style="margin-top:8px"><li>«¿Para qué lo necesitan así?»</li><li>«Si cedemos en eso, ¿qué nos pueden dar a cambio?»</li>${L.consejos.slice(0, 2).map(c => `<li>${esc(c)}</li>`).join("")}</ul></div>
   <div><span class="ojo">Defender / cambiar</span><div class="monedas" style="margin-top:8px">${pesos.slice(0, 2).map(p => `<div class="moneda defender"><b>${esc(p.nombre)}</b><span class="peso">${p.peso}</span></div>`).join("")}${pesos.slice(-2).reverse().map(p => `<div class="moneda cambiar"><b>${esc(p.nombre)}</b><span class="peso">${p.peso}</span></div>`).join("")}</div></div>
@@ -836,7 +837,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     <div class="panel"><span class="ojo">Propuesta final</span><div class="cierre-resumen" style="margin-top:8px">${D.temas.map((t, i) => { const o = letras[i] ? opcionDe(i, letras[i]) : null; return `<div class="cierre-fila"><div><span class="nota-pie">${esc(t.nombre)}</span><br>${o ? `<b>${esc(o.texto)}</b>` : `<span class="nota-pie">sin acordar</span>`}</div>${o ? `<span class="pts">+${o[l]}</span>` : ""}</div>`; }).join("")}</div>
       <div class="botones" style="margin-top:12px"><a class="boton fantasma chico" href="#negociar">← Cambiar algo en la mesa</a></div></div>
     <div class="panel termometro" id="termometro">${termometroHTML(l, suma, completos, letras.filter(x => !x).length)}
-      <div class="botones" style="margin-top:14px"><button type="button" class="boton menta grande" id="btn-cerrar" ${completos ? "" : "disabled"}>🤝 Trato hecho</button><button type="button" class="boton lava" id="btn-sin">🚶 Sin acuerdo</button></div>
+      <div class="botones" style="margin-top:14px"><button type="button" class="boton menta grande" id="btn-cerrar" ${completos ? "" : "disabled"}>${ico("handshake")} Trato hecho</button><button type="button" class="boton lava" id="btn-sin">${ico("exit")} Sin acuerdo</button></div>
       ${completos ? "" : `<p class="nota-pie" style="margin-top:8px">Para «trato hecho» hacen falta los cinco temas marcados.</p>`}
     </div>
   </div>
@@ -960,7 +961,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     const gente = LADOS.map(l => `<span class="acento-${l}"><b>${esc(D.lados[l].rol)}:</b> ${genteDe(n, l).map(p => esc(p.nombre)).join(", ") || "nadie"}</span>`).join(" · ");
     return `
 <div class="cabecera"><div><span class="ojo">Acta de la sala ${n}</span><h2>${cierre ? "Cerrada: " + esc(cierre.codigo) : completos ? "Los cinco temas acordados" : (5 - letras.filter(Boolean).length) + " temas pendientes"}</h2><p class="nota-pie">${gente}</p></div>
-  ${cierre ? `<div class="botones"><button type="button" class="boton chico" data-copiar="${esc(cierre.codigo)}">Copiar código</button><button type="button" class="boton chico fantasma" id="btn-acta-reabrir">Reabrir</button></div>` : `<div class="botones"><button type="button" class="boton menta" id="btn-acta-cerrar" ${completos ? "" : "disabled"}>🤝 Trato hecho</button><button type="button" class="boton lava" id="btn-acta-sin">🚶 Sin acuerdo</button></div>`}
+  ${cierre ? `<div class="botones"><button type="button" class="boton chico" data-copiar="${esc(cierre.codigo)}">Copiar código</button><button type="button" class="boton chico fantasma" id="btn-acta-reabrir">Reabrir</button></div>` : `<div class="botones"><button type="button" class="boton menta" id="btn-acta-cerrar" ${completos ? "" : "disabled"}>${ico("handshake")} Trato hecho</button><button type="button" class="boton lava" id="btn-acta-sin">${ico("exit")} Sin acuerdo</button></div>`}
 </div>
 <div class="panel panel-sin lava" id="acta-panel-sin" hidden>
   <p><b>Sin acuerdo.</b> Última propuesta sobre la mesa: ${completos ? `<span class="mono">${letras.join("")}</span>` : "ninguna completa (se registra sin propuesta)"}. ¿Quién la rechazó?</p>

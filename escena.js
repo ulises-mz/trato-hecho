@@ -73,7 +73,7 @@
   <g class="confeti">${confeti}</g>
   <g class="sello-escena trato-si"><rect x="300" y="112" width="300" height="56" rx="12"></rect><text x="450" y="152">¡TRATO HECHO!</text></g>
   <g class="sello-escena trato-no"><rect x="300" y="112" width="300" height="56" rx="12"></rect><text x="450" y="152">SIN ACUERDO</text></g>
-  ${o.puedoHablar ? `<g class="palabra-btn ${o.hablo ? "activo" : ""}" id="btn-palabra" role="button" tabindex="0" aria-pressed="${!!o.hablo}"><rect x="360" y="352" width="180" height="34" rx="17"></rect><text x="450" y="374">${o.hablo ? "🎙 Tenemos la palabra" : "🎙 Pedir la palabra"}</text></g>` : ""}
+  ${o.puedoHablar ? `<g class="palabra-btn ${o.hablo ? "activo" : ""}" id="btn-palabra" role="button" tabindex="0" aria-pressed="${!!o.hablo}"><rect x="360" y="352" width="180" height="34" rx="17"></rect><g fill="none" stroke="var(--borde)" stroke-width="2" stroke-linecap="round"><rect x="378" y="359" width="7" height="11" rx="3.5"></rect><path d="M375 366a6.5 6.5 0 0 0 13 0M381.5 373v4"></path></g><text x="462" y="374">${o.hablo ? "Tenemos la palabra" : "Pedir la palabra"}</text></g>` : ""}
 </svg>`;
   }
   /* Marca las burbujas visibles con una animación de entrada: se llama después de pintar. */

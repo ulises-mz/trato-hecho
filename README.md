@@ -190,7 +190,8 @@ lo de esa sesión.
 
 ```
 index.html      el cascarón: HUD con las etapas, reloj y ayuda
-estilos.css     la hoja de estilo: papel e índigo, oro, menta y lava; modo oscuro; animaciones
+estilos.css     la hoja de estilo: papel e índigo, oro, menta y lava; solo versión clara; animaciones
+iconos.js       iconos de línea en SVG (sin emojis)
 fuentes.css     las fuentes empaquetadas (fuentes/*.woff2): sin depender de Google en clase
 app.js          lógica: etapas, relojes, lobby y reparto, calculadora, códigos, tablero, gráfico, en vivo
 escena.js       la escena SVG de la mesa: asientos, palabra, burbujas, apretón de manos, levantarse
