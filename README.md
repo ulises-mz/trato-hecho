@@ -73,7 +73,7 @@ candado.
 
 | Etapa | Qué hay |
 |---|---|
-| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), lobby con los asientos de cada sala en tiempo real, el rol en la pareja y la asignación que mande el administrador |
+| **Entrar** | Login con el nombre (desde ahí cuenta como conectado), lobby con los asientos de cada sala en tiempo real, el rol en la pareja y la asignación que mande el administrador. Al sentarse se quedan esperando ahí: la preparación la abre el administrador con un botón en Admin cuando ve que ya entraron todos |
 | **Prepararse** | La ficha privada en seis pasos: el caso y las reglas, quiénes son y su posición, lo que les importa, la tabla de puntos y el plan B, la hoja de preparación y su rol. La primera vez se abre el tutorial animado |
 | **Negociar** | La escena de la sala (`escena.js`): los cuatro sentados con nombre y rol, quién tiene la palabra, la última oferta de cada lado como burbuja y el contrato con lo marcado. Debajo, la ronda, los cinco temas, el termómetro, la propuesta, las misiones, los apuntes y «Consultar mi ficha» |
 | **Cerrar** | La propuesta final contra el plan B. «Trato hecho» hace que los voceros se den la mano; «Sin acuerdo» los levanta de la mesa. Sale el código de la sala |

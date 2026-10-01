@@ -618,3 +618,7 @@ td.max { font-weight: 800; color: var(--menta-2); }
 .cinta .ico { width: 1em; height: 1em; }
 .mano .ico-grande { width: 2.4rem; height: 2.4rem; color: var(--tinta); }
 .mini-cierre .emoji, .mini-roles .emoji { color: var(--tinta); line-height: 1; display: inline-flex; }
+.espera-linea { display: flex; gap: 12px; align-items: center; margin-top: 8px; }
+.espera-linea .reloj-arena { width: 34px; height: 34px; border: 3px solid var(--borde); border-radius: 50%; border-top-color: var(--oro); animation: girar 1.2s linear infinite; flex: 0 0 auto; }
+.espera-linea p { font-weight: 600; color: var(--tinta-2); }
+#arranque .ficha-identidad { align-items: flex-end; text-align: right; }

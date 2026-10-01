@@ -297,13 +297,14 @@
     if (f === "negociacion") return "negociar";
     if (f === "cierre") return "cerrar";
     if (f === "debrief" || f === "fin") return "resultado";
+    if (f === "espera" && RELOJES.admin.remoto !== undefined) return "entrar";   // sentados, esperando a que el administrador abra
     return "preparar";
   }
   function bloqueada(id) {
     if (id === "entrar") return false;
     if (!dentro()) return true;
     const f = faseActual();
-    if (id === "preparar") return false;
+    if (id === "preparar") return f === "espera" && RELOJES.admin.remoto !== undefined;
     if (id === "negociar" || id === "cerrar") return f === "consigna" || f === "preparacion" || f === "cuenta" || (f === "espera" && RELOJES.admin.remoto !== undefined);
     if (id === "resultado") return !(estado.cerrado || f === "debrief" || f === "fin");
     return false;
@@ -311,11 +312,13 @@
   function motivoBloqueo(id) {
     if (!dentro()) return "Primero escriba su nombre y elija su sala y su lado.";
     const fi = faseInfo();
+    if (id === "preparar") return "El administrador abre la preparación cuando todos hayan entrado. Esperá en esta pantalla: cambia sola.";
     if (id === "negociar" || id === "cerrar") return fi ? "La mesa se abre cuando termine la preparación (" + mmss(fi.restante) + ")." : "La mesa se abre cuando el administrador arranque el reloj.";
     if (id === "resultado") return "El resultado se ve después de cerrar el trato o cuando se acabe el tiempo.";
     return "Todavía no.";
   }
   const TRANSICIONES = {
+    consigna: ["¡Empezamos!", "Lean su ficha mientras el administrador da la consigna.", "menta"],
     preparacion: ["¡A prepararse!", "Lean su ficha, miren su plan B y preparen la apertura.", "menta"],
     negociacion: ["¡A negociar!", "Siete minutos. Marquen lo que se diga y pregunten para qué.", ""],
     cierre: ["Último minuto", "Cierren el trato o registren «sin acuerdo» con la última propuesta.", "lava"],
@@ -351,6 +354,7 @@
       const nota = el.querySelector(".reloj-nota"); if (nota) nota.hidden = !(r.remoto !== undefined && el.dataset.reloj === "equipo");
     });
     actualizarCues(fa);
+    if (rutaActual === "admin" && tics % 2 === 0) { const a = document.getElementById("arranque"); if (a) { const h = arranqueHTML(); if (a.innerHTML !== h) a.innerHTML = h; } }
     const ronda = document.getElementById("ronda"); if (ronda) { const h = rondaHudHTML(); if (ronda.innerHTML !== h) ronda.innerHTML = h; }
     // presión: viñeta que late cuando queda poco tiempo de negociación (solo en vistas de estudiante)
     const estudiante = ETAPAS.some(e => e.id === rutaActual);
@@ -358,6 +362,7 @@
     document.body.classList.toggle("presion-suave", estudiante && !!f && f.id === "negociacion" && f.restante > 60 && f.restante <= 150 && !estado.cerrado);
     vigilarEtapa();
     if (tics % 4 === 0) { pintarEscena(); pintarEtapas(); }
+    if (rutaActual === "entrar" && dentro() && !bloqueada("preparar") && document.querySelector(".espera-linea")) render();
     if (++tics % 10 === 0) { pintarVivo(); pintarPresencia(); pintarConectados(); if (rutaActual === "entrar") pintarLobby(); if (estado.nombre && tics % 40 === 0) { anunciar(); if (dentro() && (rutaActual === "preparar" || rutaActual === "negociar" || rutaActual === "cerrar")) reportar({}); } }
   }
   setInterval(tick, 500);
@@ -430,9 +435,10 @@
     if (p[0] && p[1] && p[0] === p[1] && !p[0].includes("?")) return { clave: "coinciden", texto: "Coinciden: a punto de cerrar" };
     if (lados.some(x => x.fase === "mesa") || (s.acta && s.acta.temas && Object.keys(s.acta.temas).length)) return { clave: "mesa", texto: "Negociando" };
     if (!lados.length) return { clave: "vacia", texto: "Sin entrar" };
+    if (lados.every(x => x.fase === "sentado")) return { clave: "ficha", texto: "Sentados, esperando" };
     return { clave: "ficha", texto: "Preparándose" };
   }
-  const FASE_TEXTO = { ficha: "se prepara", mesa: "en la mesa", cerrado: "cerró" };
+  const FASE_TEXTO = { sentado: "sentado, esperando", ficha: "se prepara", mesa: "en la mesa", cerrado: "cerró" };
   function actaDe(n) {
     const remota = enVivo() && vivo.salas && vivo.salas[n] && vivo.salas[n].acta;
     const local = estado.actas[n];
@@ -489,7 +495,7 @@
     }).join("");
     return `<div class="vivo-resumen"><span class="estado ${con.conectado ? "ok" : "mal"}">${esc(con.mensaje)}</span><span>${lista.length} salas · ${conteo.cerrado} cerradas · ${conteo.coinciden + conteo.mesa} negociando · ${conteo.ficha} preparándose · ${conteo.vacia} sin entrar</span></div><div class="vivo-grid">${tarjetas}</div>`;
   }
-  function pintarVivo() { const z = document.getElementById("vivo"); if (z) z.innerHTML = vivoHTML(); const j = document.getElementById("jugadores"); if (j) j.innerHTML = jugadoresHTML(); }
+  function pintarVivo() { const z = document.getElementById("vivo"); if (z) z.innerHTML = vivoHTML(); const j = document.getElementById("jugadores"); if (j) j.innerHTML = jugadoresHTML(); const a = document.getElementById("arranque"); if (a) { const h = arranqueHTML(); if (a.innerHTML !== h) a.innerHTML = h; } }
   function codigosEnVivo() {
     const salas = vivo.salas || {}, codigos = [], sinCodigo = [];
     Object.keys(salas).map(Number).filter(n => n > 0).sort((a, b) => a - b).forEach(n => {
@@ -515,7 +521,7 @@
     const t = D.tiempos, M = mensajes();
     const tPrep = t.consigna, tNeg = tPrep + t.preparacion, tCierre = tNeg + t.negociacion, tRes = tCierre + t.cierre, tFin = tRes + t.debrief;
     return [
-      { en: 0, titulo: "Consigna", que: "Compartir la pantalla de Entrar. Leer el caso en dos frases y las cuatro reglas. Pegar el mensaje de ingreso en el chat. Ver cuántos entran y repartir las salas desde este panel.", msg: M.ingreso },
+      { en: 0, titulo: "Consigna", que: "Compartir la pantalla de Entrar. Pegar el mensaje de ingreso en el chat; ver cuántos entran y repartir las salas desde este panel. Cuando estén todos sentados, «Abrir la preparación para todos» arranca este reloj. Leer el caso en dos frases y las cuatro reglas.", msg: M.ingreso },
       { en: tPrep - 15, titulo: "Abrir las salas", que: "Zoom: Salas para grupos pequeños, Abrir todas las salas. Dejar de compartir pantalla. El staff entra a su sala y elige su número en la vista Staff." },
       { en: tPrep, titulo: "Preparación", que: "La web pasa a cada pareja a Prepararse: leen su ficha por pasos y llenan la hoja. El staff resuelve dudas de reglas, nunca de estrategia. En el tablero se ve quién no ha entrado." },
       { en: tNeg - 30, titulo: "Aviso: 30 segundos", que: "Transmitir a todas las salas.", msg: M.prep30 },
@@ -684,7 +690,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
     <div class="botones"><button type="button" class="boton chico fantasma" id="btn-cambiar-nombre">Cambiar mi nombre</button><button type="button" class="boton chico fantasma" data-tutorial>¿Cómo se juega?</button></div>
   </div>
   ${asig ? `<div class="asignacion"><span class="ojo">El administrador te asignó un lugar</span><b class="grande">Sala ${asig.sala} · ${esc(D.lados[asig.lado].rol)} · ${esc((ROLES[asig.rol] || ROLES.ambos).nombre)}</b><div class="botones"><button type="button" class="boton oro grande" id="btn-asignacion" data-sala="${asig.sala}" data-lado="${asig.lado}" data-rol="${esc(asig.rol || "ambos")}">Sentarme ahí</button><span class="nota-pie">Si en tu sala de Zoom te tocó otra cosa, elegí abajo a mano.</span></div></div>` : ""}
-  ${yaDentro ? `<div class="panel menta"><span class="ojo">Ya estás sentado</span><h2>Sala ${estado.sala} · ${esc(D.lados[estado.lado].rol)} · ${esc(ROLES[estado.rol].nombre)}</h2><div class="botones"><a class="boton oro grande" href="#preparar">Ir a prepararme</a><button type="button" class="boton fantasma" id="btn-salir">Cambiar de sala, lado o rol</button></div></div>` : ""}
+  ${yaDentro ? `<div class="panel menta"><span class="ojo">Ya estás sentado</span><h2>Sala ${estado.sala} · ${esc(D.lados[estado.lado].rol)} · ${esc(ROLES[estado.rol].nombre)}</h2>${bloqueada("preparar") ? `<div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>Esperá aquí: el administrador abre la preparación cuando todos hayan entrado. La pantalla cambia sola.</p></div><div class="botones"><button type="button" class="boton fantasma chico" id="btn-salir">Cambiar de sala, lado o rol</button></div>` : `<div class="botones"><a class="boton oro grande" href="#preparar">Ir a prepararme</a><button type="button" class="boton fantasma" id="btn-salir">Cambiar de sala, lado o rol</button></div>`}</div>` : ""}
   <div class="panel" id="entrar">
     <h2>${yaDentro ? "Cambiar de lugar" : "Sentate en tu sala"}</h2>
     <p>Tocá el lado que te tocó en tu sala de Zoom y elegí tu rol en la pareja. Ves llegar a los demás en tiempo real.</p>
@@ -1103,9 +1109,16 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
   }
 
   /* ---------- admin, staff y guion ---------- */
+  function arranqueHTML() {
+    const fa = RELOJES.admin.fase(), j = enVivo() ? jugadoresActivos() : [], sentados = j.filter(x => x.sala).length;
+    const conteo = enVivo() ? `<span class="conectados"><span class="punto" aria-hidden="true"></span>${j.length} ${j.length === 1 ? "persona conectada" : "personas conectadas"} · ${sentados} ${sentados === 1 ? "sentada" : "sentadas"} · ${j.length - sentados} sin sala</span>` : `<span class="nota-pie">Sin tablero en vivo no se ve quién está conectado.</span>`;
+    if (fa) return `<div class="cabecera"><div><span class="ojo">En marcha</span><h2>${esc(fa.nombre)} · ${mmss(fa.restante)}</h2><p class="nota-pie">Las pantallas de los equipos van con este reloj. «Siguiente fase» salta; «Reiniciar» lo detiene.</p></div>${conteo}</div>`;
+    return `<div class="cabecera"><div><span class="ojo">Todos sentados, esperando</span><h2>Abrir la preparación</h2><p class="nota-pie">Los equipos se quedan en Entrar hasta que pulsés este botón. Arranca el reloj completo: consigna, preparación, negociación, cierre y resultados.</p></div><div class="ficha-identidad">${conteo}<button type="button" class="boton oro grande" id="btn-arrancar">Abrir la preparación para todos</button></div></div>`;
+  }
   function vistaAdmin() {
     const t = D.tiempos, total = FASES_ADMIN.reduce((s, f) => s + f.dur, 0);
     return `
+<section class="seccion"><div class="panel oro" id="arranque">${arranqueHTML()}</div></section>
 <section class="seccion">
   <span class="ojo">Panel del administrador · pestaña privada: no compartirla</span>
   <h1>Admin</h1>
@@ -1286,7 +1299,9 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     estado.sala = sala; estado.lado = lado; if (rol) estado.rol = rol;
     guardarS("sala", sala); guardarS("lado", lado); guardarS("rol", estado.rol);
     if (!estado.entrado) { estado.entrado = Date.now(); guardarS("entrado", estado.entrado); }
-    anunciar(); location.hash = "#preparar";
+    anunciar(); reportar({ fase: "sentado", entrado: estado.entrado, rol: estado.rol, propuesta: propuestaActual() });
+    if (bloqueada("preparar")) { if (location.hash !== "#entrar") location.hash = "#entrar"; else render(); avisar("Listo. Esperá a que el administrador abra la preparación."); }
+    else location.hash = "#preparar";
   }
   function salirDeSala() {
     despedirse(estado.sala); if (estado.sala && estado.lado) Sync.fijar("salas/" + estado.sala + "/" + estado.lado, null);
@@ -1355,6 +1370,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
         Sync.fijar("salas/" + estado.sala + "/palabra", mia ? null : { id: idPestana, lado: estado.lado, nombre: estado.nombre, ts: Date.now() }); break;
       }
       case "btn-asignacion": sentarse(parseInt(b.dataset.sala, 10), b.dataset.lado, b.dataset.rol || "ambos"); break;
+      case "btn-arrancar": if (!RELOJES.admin.inicio) { RELOJES.admin.alternar(); avisar("Reloj en marcha: los equipos pasan a Prepararse."); } break;
       case "btn-entrar": {
         if (!estado.nombre) { avisar("Escribí tu nombre primero."); return; }
         if (!(estado.sala && estado.lado)) { avisar("Tocá el lado de tu sala en el tablero."); return; }
