@@ -215,7 +215,7 @@ datos.js        EL CASO: textos, opciones, puntos, plan B, tiempos. Cambiar aqu�
 config.js       LA INSTALACIÓN: motor en vivo (servidor, local o Firebase), nombre de sesión, clave, salas y nombres de las salas de la videollamada
 sync.js         canal en vivo: servidor propio (REST + SSE), Firebase o localStorage
 servidor/       el servidor: sirve la web y guarda las sesiones en SQLite (sin dependencias)
-video/          el video de introducción de la pre-sala: intro.mp4, intro.vtt (subtítulos) e intro-poster.jpg
+video/          los videos: intro.mp4 (pre-sala) y staff.mp4 (vista Staff), con sus .vtt y pósters
 Dockerfile      imagen para Coolify o cualquier Docker: node:24-alpine, puerto 3000
 firebase-rules.json  reglas de la base si se usa Firebase
 fichas.html     versión imprimible de las fichas (fichas.html?lado=agencia)
@@ -278,6 +278,13 @@ administrador ve «N de M listos» y abre el armado cuando estén todos. Se
 regenera con `../video/intro-pipeline.py` (en el hub) y se copian aquí
 `intro.mp4`, `intro.vtt` e `intro-poster.jpg`; este repo es el único que
 versiona el `.mp4` (el hub ignora los `.mp4`).
+
+`video/staff.mp4` (1:44) es el video **del staff**, incrustado en la vista Staff: el
+caso, cómo crear las 15 salas de Zoom con los nombres exactos, dónde entrar y qué
+hacer en cada etapa (asomarse a «Sala nA» y «Sala nC» en la preparación, quedarse
+en «Sala n» mirando el panel de verificación, cierre solo si coinciden) y las cuatro
+reglas. Se regenera con `../video/intro-pipeline.py --base staff` (en el hub) y se
+copian aquí `staff.mp4`, `staff.vtt` y `staff-poster.jpg`.
 
 [`../video/como-jugar.mp4`](../video/como-jugar.mp4) (1:57) explica cómo jugar
 según el rol, pero **muestra la interfaz anterior** (pestañas Mi ficha y Mesa):
