@@ -113,7 +113,26 @@
   }
 
   /* ---------- estado ---------- */
-  const idPestana = (() => { let v = leerS("id", null); if (!v) { v = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); guardarS("id", v); } return v; })();
+  /* La identidad es por pestaña. Si el navegador duplica la pestaña (o se abre desde un enlace en
+     otra pestaña) copia el sessionStorage y dos pestañas tendrían el mismo id: cada una anunciaría
+     su asiento y la misma persona aparecería en varias salas. Cada pestaña viva deja un latido en
+     localStorage; si al cargar el id ya tiene un latido fresco de otra pestaña, esta recibe un id
+     nuevo y arranca sin asiento (conserva el nombre). */
+  const idPestana = (() => {
+    const nuevoId = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
+    const alm = almacen("localStorage");
+    const latidoDe = id => { try { return parseInt(alm.getItem("th.pestana." + id) || "0", 10); } catch (e) { return 0; } };
+    let v = leerS("id", null);
+    const duplicada = !!(v && alm && Date.now() - latidoDe(v) < 6000);
+    if (!v || duplicada) { v = nuevoId(); guardarS("id", v); if (duplicada) ["sala", "lado", "entrado", "trato", "cerrado", "registro", "avisadas", "prepVistos", "tutoVisto"].forEach(k => guardarS(k, null)); }
+    if (alm) {
+      const latir = () => { try { alm.setItem("th.pestana." + v, String(Date.now())); } catch (e) { /* lleno o bloqueado */ } };
+      latir(); setInterval(latir, 2000);
+      addEventListener("pagehide", () => { try { alm.removeItem("th.pestana." + v); } catch (e) { /* nada */ } });
+      try { for (let i = alm.length - 1; i >= 0; i--) { const k = alm.key(i); if (k && k.startsWith("th.pestana.") && k !== "th.pestana." + v && Date.now() - parseInt(alm.getItem(k) || "0", 10) > 60000) alm.removeItem(k); } } catch (e) { /* nada */ }
+    }
+    return v;
+  })();
   const estado = {
     sala: leerS("sala", null),
     lado: leerS("lado", null),
@@ -377,9 +396,13 @@
   /* Presencia en dos niveles: jugadores/<id> (quién está en la plataforma, con o sin sala) y
      salas/N/gente/<id> (quién está sentado en cada sala). */
   function anunciar() {
-    if (!estado.nombre) return;
+    if (!estado.nombre || VISTAS_FACILITADOR.includes(rutaActual)) return;   // el facilitador no ocupa asiento ni cuenta como jugador
     Sync.escribir("jugadores/" + idPestana, { nombre: estado.nombre, sala: estado.sala || null, lado: estado.lado || null, rol: estado.rol, etapa: rutaActual, entrado: estado.entradoPlataforma || Date.now(), actualizado: Date.now() });
-    if (estado.sala && estado.lado) Sync.escribir("salas/" + estado.sala + "/gente/" + idPestana, { nombre: estado.nombre, lado: estado.lado, rol: estado.rol, entrado: estado.entrado || Date.now(), actualizado: Date.now() });
+    if (estado.sala && estado.lado) {
+      Sync.escribir("salas/" + estado.sala + "/gente/" + idPestana, { nombre: estado.nombre, lado: estado.lado, rol: estado.rol, entrado: estado.entrado || Date.now(), actualizado: Date.now() });
+      // una persona ocupa un solo asiento: si este id quedó en otra sala, se quita de ahí
+      Object.entries(vivo.salas || {}).forEach(([n, s]) => { if (String(n) !== String(estado.sala) && s && s.gente && s.gente[idPestana]) Sync.fijar("salas/" + n + "/gente/" + idPestana, null); });
+    }
   }
   function despedirse(sala) { if (sala) Sync.fijar("salas/" + sala + "/gente/" + idPestana, null); }
   const activo = x => x && x.nombre && Date.now() - (x.actualizado || 0) < 90000;
@@ -1263,6 +1286,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     app.innerHTML = VISTAS_FACILITADOR.includes(ruta) && !tieneClave() ? vistaClave(ruta) : vistas[ruta]();
     tooltip.hidden = true;
     pintarHUD(); tick();
+    if (VISTAS_FACILITADOR.includes(ruta) && estado.nombre && enVivo()) { Sync.fijar("jugadores/" + idPestana, null); if (estado.sala) despedirse(estado.sala); }   // el facilitador deja su asiento
     if (ruta === "entrar") { actualizarBotonEntrar(); const n = document.getElementById("nombre"); if (n && !estado.nombre) n.focus(); }
     if (ruta === "preparar") {
       if (!estado.entrado) { estado.entrado = Date.now(); guardarS("entrado", estado.entrado); }
