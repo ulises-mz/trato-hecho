@@ -1610,7 +1610,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     return `
 <section class="seccion">
   <div class="cabecera">
-    <div><span class="ojo">Staff · verificador de la sala</span><h1>Mi sala</h1><p class="entrada">Usted no negocia: verifica. Aquí ve las dos propuestas de su sala en vivo, tema por tema; la web solo habilita «Trato hecho» cuando coinciden. Resuelva dudas de reglas, nunca de estrategia.</p><div class="botones" style="margin-top:8px"><a class="boton fantasma chico" id="enlace-video-staff" href="video/staff.mp4" target="_blank" rel="noopener" hidden>Ver el video del staff (2 min)</a></div></div>
+    <div><span class="ojo">Staff · verificador de la sala</span><h1>Mi sala</h1><p class="entrada">Usted no negocia: verifica. Aquí ve las dos propuestas de su sala en vivo, tema por tema; la web solo habilita «Trato hecho» cuando coinciden. Resuelva dudas de reglas, nunca de estrategia.</p><div class="botones" style="margin-top:8px"><a class="boton fantasma chico" id="enlace-video-staff" href="#staff-video" hidden>Ver el video del staff (2 min)</a></div></div>
     <div class="reloj" data-reloj="admin"><span class="fase-actual">Esperando al administrador</span><span class="tiempo">${mmss(FASES_ADMIN[0].dur)}</span></div>
   </div>
   <div class="salas-chips">${lista.map(n => `<button type="button" class="chip" data-staff-sala="${n}" aria-pressed="${estado.staffSala === n}"><span class="letra">${n}</span><span>Sala ${n}</span></button>`).join("")}</div>
@@ -1620,6 +1620,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   ${verificacionHTML(estado.staffSala, null)}
   <div class="panel suave" id="staff-ahora" style="margin-top:12px">${staffAhoraHTML()}</div>
 </section>
+<section class="seccion" id="staff-video" hidden><div class="cabecera"><div><span class="ojo">Dos minutos</span><h2>El video del staff</h2><p class="nota-pie">El caso, dónde entrar y qué hacer en cada etapa: véanlo antes de la clase.</p></div></div><div class="video-intro" id="staff-video-caja"></div></section>
 <section class="seccion" id="zoom-salas">${zoomSalasHTML()}</section>
 <section class="seccion"><div class="cabecera"><div><span class="ojo">Para entender el juego</span><h2>Las etapas, en orden</h2><p class="nota-pie">Lo que ven los equipos en cada una y lo que hace el staff. La actual está marcada.</p></div></div><div id="etapas-staff">${etapasStaffHTML()}</div></section>
 <section class="seccion"><div class="cabecera"><div><span class="ojo">Para resolver dudas</span><h2>Las dos empresas</h2></div></div>${empresasStaffHTML()}</section>
@@ -1949,9 +1950,14 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   // El video del staff es opcional: el enlace aparece solo si el servidor lo tiene.
   let videoStaffExiste = null;
   function mostrarVideoStaff() {
-    const a = document.getElementById("enlace-video-staff"); if (!a) return;
-    if (videoStaffExiste !== null) { a.hidden = !videoStaffExiste; return; }
-    fetch("video/staff.mp4", { method: "HEAD" }).then(r => { videoStaffExiste = r.ok; a.hidden = !r.ok; }).catch(() => { videoStaffExiste = false; });
+    const a = document.getElementById("enlace-video-staff"), sec = document.getElementById("staff-video"), caja = document.getElementById("staff-video-caja");
+    if (!a || !sec) return;
+    const pintar = () => {
+      a.hidden = !videoStaffExiste; sec.hidden = !videoStaffExiste;
+      if (videoStaffExiste && caja && !caja.firstChild) caja.innerHTML = `<video id="video-staff" controls playsinline preload="metadata" poster="${conVersion("video/staff-poster.jpg")}"><source src="${conVersion("video/staff.mp4")}" type="video/mp4"><track kind="subtitles" srclang="es" label="Español" src="${conVersion("video/staff.vtt")}" default>Tu navegador no reproduce el video.</video>`;
+    };
+    if (videoStaffExiste !== null) { pintar(); return; }
+    fetch("video/staff.mp4", { method: "HEAD" }).then(r => { videoStaffExiste = r.ok; pintar(); }).catch(() => { videoStaffExiste = false; });
   }
   setInterval(mostrarVideoStaff, 1000); mostrarVideoStaff();
   document.getElementById("aviso-sala").addEventListener("click", ocultarAvisoSala);
