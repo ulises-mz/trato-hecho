@@ -5,7 +5,10 @@
 # Las dos cosas eran falsas, y quitarlo rompió TODOS los despliegues:
 #
 #   · Traefik enruta por la etiqueta Host, no por la salud de Docker. El 404 venía de otra
-#     parte, antes del servidor: al nombre le falta su registro DNS en Cloudflare.
+#     parte, antes del servidor: el túnel de Cloudflare no tiene regla para este nombre.
+#     (Una primera versión de este comentario decía «le falta el registro DNS»; también
+#     era falso — el registro se creó y el 404 siguió. La regla del túnel se agrega en el
+#     panel de Cloudflare, no en /etc/cloudflared/config.yml, que el túnel ignora.)
 #
 #   · Coolify, al actualizar sin cortar el servicio, le pregunta la salud al contenedor nuevo con
 #     «docker inspect --format='{{json .State.Health.Status}}'». Sin HEALTHCHECK esa plantilla
