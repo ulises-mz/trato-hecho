@@ -23,8 +23,8 @@ ganar-ganar que decide qué sala negoció mejor.
 | Fase | Dura | Qué pasa |
 |---|---:|---|
 | Consigna | 1 min | Se lee el caso y las cuatro reglas; «Iniciar juego» reparte lados y salas a los equipos ya armados |
-| Preparación | 4 min | Cada lado lee su ficha privada por pasos y llena la hoja de preparación |
-| Negociación | 10 min | Hablan y marcan las opciones en la mesa; el termómetro muestra solo sus puntos |
+| Preparación | 4 min | Cada lado lee su ficha privada por pasos y llena la hoja de preparación, cada equipo en su propia sala de Zoom: la agencia en «Sala n» (que es también la mesa) y el cliente en «Sala n Cliente»; la web le dice a cada uno a cuál entrar |
+| Negociación | 10 min | El cliente pasa a «Sala n» (la web se lo dice en la transición y en el aviso de 30 s). Hablan y marcan las opciones en la mesa; el termómetro muestra solo sus puntos |
 | Cierre | 1 min | Cada equipo registra el cierre en la web: «trato hecho» solo se habilita si las propuestas de los dos equipos coinciden; si no, «sin acuerdo». El código (`S3-BEDCD`) es solo respaldo |
 | Resultados | 4 min | El tablero se llena solo, rankea, grafica y revela los intereses de los dos lados |
 
@@ -212,7 +212,7 @@ app.js          lógica: etapas, relojes, lobby y reparto, calculadora, códigos
 escena.js       la escena SVG de la mesa: asientos, palabra, burbujas, apretón de manos, levantarse
 tutorial.js     el tutorial animado «¿Cómo se juega?» con componentes en miniatura
 datos.js        EL CASO: textos, opciones, puntos, plan B, tiempos. Cambiar aquí
-config.js       LA INSTALACIÓN: motor en vivo (servidor, local o Firebase), nombre de sesión, clave, salas
+config.js       LA INSTALACIÓN: motor en vivo (servidor, local o Firebase), nombre de sesión, clave, salas y nombres de las salas de la videollamada
 sync.js         canal en vivo: servidor propio (REST + SSE), Firebase o localStorage
 servidor/       el servidor: sirve la web y guarda las sesiones en SQLite (sin dependencias)
 video/          el video de introducción de la pre-sala: intro.mp4, intro.vtt (subtítulos) e intro-poster.jpg

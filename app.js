@@ -169,6 +169,17 @@
   const enVivo = () => vivo.conexion.modo !== "nada";
   const dentro = () => !!(estado.nombre && estado.sala && estado.lado);
   const videollamada = () => C.videollamada || "Zoom";
+  /* Salas de la videollamada: la agencia se prepara y negocia en «Sala n»; el cliente se prepara en
+     privado en «Sala n Cliente» y pasa a «Sala n» cuando empieza la negociación. */
+  const nombreSala = n => (C.sala || "Sala {n}").replace("{n}", n);
+  const nombreSalaCliente = n => C.salaCliente ? C.salaCliente.replace("{n}", n) : null;
+  const salaPrivada = () => !!C.salaCliente;
+  function indicacionSala(n, lado) {
+    const vc = videollamada();
+    if (lado === "cliente" && salaPrivada()) return `Entrá a «${nombreSalaCliente(n)}» en ${vc}: ahí se preparan en privado. Cuando empiece la negociación, pasan a «${nombreSala(n)}», donde los espera la agencia.`;
+    if (lado === "agencia" && salaPrivada()) return `Entrá a «${nombreSala(n)}» en ${vc}: ahí se preparan en privado y ahí mismo se negocia; el cliente llega cuando empiece la negociación.`;
+    return `Entrá a «${nombreSala(n)}» en ${vc}. Ahí van a estar su equipo y el equipo rival.`;
+  }
   const juego = () => (vivo.config && vivo.config.juego) || null;
   const juegoIniciado = () => !!(juego() && juego().iniciado);
   const salasActivas = () => (juego() && juego().salas) || C.salas || 5;
@@ -366,8 +377,13 @@
     if (!ETAPAS.some(e => e.id === rutaActual) || !dentro()) return;
     const sug = etapaSugerida(), t = TRANSICIONES[f];
     if (!t) return;
-    if (sug !== rutaActual && !bloqueada(sug)) transicion(t[0], t[1], t[2], () => { location.hash = "#" + sug; });
-    else transicion(t[0], t[1], t[2]);
+    let texto = t[1];
+    if (salaPrivada() && estado.sala) {
+      if (f === "preparacion") texto += estado.lado === "cliente" ? ` Ustedes se preparan en privado en «${nombreSalaCliente(estado.sala)}».` : ` Ustedes se preparan en «${nombreSala(estado.sala)}».`;
+      if (f === "negociacion") texto += estado.lado === "cliente" ? ` Pasen ya a «${nombreSala(estado.sala)}» en ${videollamada()}: ahí los espera la agencia.` : ` El cliente llega ahora a «${nombreSala(estado.sala)}».`;
+    }
+    if (sug !== rutaActual && !bloqueada(sug)) transicion(t[0], texto, t[2], () => { location.hash = "#" + sug; });
+    else transicion(t[0], texto, t[2]);
   }
   let tics = 0;
   function tick() {
@@ -604,7 +620,7 @@
       espera: ["Elija arriba el número de su sala: todo lo que ve aquí es de esa sala.", "Cuando el administrador abra las salas en " + vc + ", entre a la suya."],
       cuenta: ["Entre a su sala de " + vc + ". Los equipos están recibiendo su sala y su lado."],
       consigna: ["Confirme que en su sala de " + vc + " estén los dos equipos: agencia y cliente."],
-      preparacion: ["Los equipos leen su ficha privada. Dudas de reglas sí; de estrategia, nunca.", "Nadie comparte pantalla ni lee sus puntos en voz alta."],
+      preparacion: ["Los equipos leen su ficha privada. Dudas de reglas sí; de estrategia, nunca.", "Nadie comparte pantalla ni lee sus puntos en voz alta.", "Cada equipo está en su propia sala de " + vc + (salaPrivada() ? "; el cliente llega a «" + nombreSala(estado.staffSala) + "» cuando empiece la negociación." : ".")],
       negociacion: ["Mire las dos propuestas: verde donde coinciden, rojo donde no. No intervenga en el contenido.", "Si preguntan «¿qué nos conviene?»: «pregúntenle a la otra parte para qué lo necesita».", "Los avisos de tiempo salen solos en todas las pantallas."],
       cierre: ["«Trato hecho» solo se habilita si las dos propuestas son idénticas. Si no coinciden, que revisen los temas en rojo o registren «Sin acuerdo».", "Antes de volver a la sala principal, confirme que la sala quede cerrada."],
       debrief: ["Sala cerrada o fuera de tiempo. Vuelva a la sala principal para los resultados."],
@@ -744,7 +760,7 @@
     if (juegoIniciado()) {
       const salas = {};
       Object.keys(cfg).forEach(n => { const a = cfg[n]; salas[a.sala] = salas[a.sala] || {}; salas[a.sala][a.lado] = { equipo: n, gente: (equipos[n] || []).map(x => x.nombre) }; });
-      porSala = `<h3 style="margin-top:14px">Quién va a cada sala de ${esc(videollamada())}</h3><p class="nota-pie">Esta es la lista para mover a cada persona a su sala en la videollamada.</p><div class="vivo-grid" style="margin-top:8px">${Object.keys(salas).sort((a, b) => a - b).map(n => `<div class="sala-card"><div class="sala-cab"><b>Sala ${n}</b></div>${LADOS.map(l => { const x = salas[n][l]; return `<div class="lado-linea"><span class="quien acento-${l}">${esc(D.lados[l].rol)}</span><span class="nombres">${x ? esc(x.gente.join(", ")) + ` <small>equipo ${esc(x.equipo)}</small>` : "<span class='nota-pie'>sin equipo</span>"}</span></div>`; }).join("")}</div>`).join("")}</div>`;
+      porSala = `<h3 style="margin-top:14px">Quién va a cada sala de ${esc(videollamada())}</h3><p class="nota-pie">Esta es la lista para mover a cada persona a su sala en la videollamada.</p><div class="vivo-grid" style="margin-top:8px">${Object.keys(salas).sort((a, b) => a - b).map(n => `<div class="sala-card"><div class="sala-cab"><b>${esc(nombreSala(n))}</b>${salaPrivada() ? `<span class="estado neutro">preparación: cliente en «${esc(nombreSalaCliente(n))}»</span>` : ""}</div>${LADOS.map(l => { const x = salas[n][l]; return `<div class="lado-linea"><span class="quien acento-${l}">${esc(D.lados[l].rol)}</span><span class="nombres">${x ? esc(x.gente.join(", ")) + ` <small>equipo ${esc(x.equipo)}</small>` : "<span class='nota-pie'>sin equipo</span>"}</span></div>`; }).join("")}</div>`).join("")}</div>`;
     }
     const lista = `<div class="jugadores" style="margin-top:10px">${armado() ? "" : `<p class="nota-pie" style="flex-basis:100%">Pre-sala: todavía no hay equipos. Se arman cuando abrás el armado, con el tamaño que dé la cantidad de gente.</p>`}${activos.map(x => `<span class="jugador ${x.equipo > 0 ? "" : "sin-sala"}"><span class="avatar ${x.lado || ""}">${esc(iniciales(x.nombre))}</span>${!armado() && x.listo ? `<span class="listo-marca" title="Ya marcó que está listo">${Iconos.svg("check")}</span>` : ""}${esc(x.nombre)}<small>${x.sala ? `S${x.sala}` : x.equipo > 0 ? `eq. ${x.equipo}` : "sin equipo"} · ${esc(hace(x.actualizado))}</small><button type="button" class="tuto-cerrar" style="width:24px;height:24px;font-size:.7rem;box-shadow:none" data-sacar="${esc(x.id)}" data-nombre="${esc(x.nombre)}" aria-label="Sacar a ${esc(x.nombre)}" title="Sacar">✕</button></span>`).join("") || `<span class="nota-pie">Nadie conectado.</span>`}</div>`;
     return lista + (armado() ? hubHTML(true) + porSala : "");
@@ -803,7 +819,7 @@
     const tPrep = t.consigna, tNeg = tPrep + t.preparacion, tCierre = tNeg + t.negociacion, tRes = tCierre + t.cierre, tFin = tRes + t.debrief;
     return [
       { en: 0, titulo: "Consigna", que: "Pegar el mensaje de ingreso en el chat. Cada persona entra con su nombre, ve el video de introducción y marca «Estoy listo»; arriba se ve cuántos están listos. Con todos listos, «Abrir el armado de equipos» y acomodar a los que falten. Con todos en equipos, «Iniciar juego» reparte lados y salas y arranca este reloj. Leer el caso en dos frases y las cuatro reglas (el video ya las contó).", msg: M.ingreso },
-      { en: tPrep - 15, titulo: "Abrir las salas", que: videollamada() + ": abrir las salas para grupos pequeños «Sala 1» a «Sala N», con «permitir que los participantes elijan sala»: cada quien entra a la sala que le dice la web; la lista «Quién va a cada sala» de este panel sirve para revisar y mover a quien se equivoque. Dejar de compartir pantalla. El staff entra a su sala y elige su número en la vista Staff." },
+      { en: tPrep - 15, titulo: "Abrir las salas", que: videollamada() + ": abrir las salas para grupos pequeños «" + nombreSala(1) + "» a «" + nombreSala(salasActivas()) + "»" + (salaPrivada() ? " y, para que cada equipo se prepare en privado, «" + nombreSalaCliente(1) + "» a «" + nombreSalaCliente(salasActivas()) + "» (el cliente pasa a «" + nombreSala("n") + "» al empezar la negociación)" : "") + ", con «permitir que los participantes elijan sala»: cada quien entra a la sala que le dice la web; la lista «Quién va a cada sala» de este panel sirve para revisar y mover a quien se equivoque. Dejar de compartir pantalla. El staff entra a su sala y elige su número en la vista Staff." },
       { en: tPrep, titulo: "Preparación", que: "La web pasa a cada pareja a Prepararse: leen su ficha por pasos y llenan la hoja. El staff resuelve dudas de reglas, nunca de estrategia. En el tablero se ve quién no ha entrado." },
       { en: tNeg - 30, titulo: "Aviso: 30 segundos", que: "Sale solo, con sonido, en la pantalla de cada equipo. Decirlo por " + videollamada() + " solo si alguna sala no tiene la web abierta.", msg: M.prep30 },
       { en: tNeg, titulo: "Negociación", que: "La web abre la mesa en todas las salas. El staff vigila en su pantalla que las propuestas de los dos equipos coincidan, sin meterse en el contenido. Vigilar que nadie muestre la tabla de puntos." },
@@ -834,7 +850,8 @@
     const z = document.getElementById("aviso-sala"); if (!z) return;
     const hud = document.querySelector(".hud"); z.style.top = ((hud ? hud.offsetHeight : 60) + 10) + "px";
     z.className = "aviso-sala " + (a.tono || "");
-    z.innerHTML = `${Iconos.svg(a.tono === "lava" ? "flag" : "clock")}<div><b>${esc(a.titulo)}</b><p>${esc(a.texto)}</p></div><span class="cerrar-aviso">Cerrar</span>`;
+    const extra = a.id === "prep30" && salaPrivada() && estado.sala && estado.lado === "cliente" ? ` Ustedes pasan entonces a «${nombreSala(estado.sala)}» en ${videollamada()}.` : "";
+    z.innerHTML = `${Iconos.svg(a.tono === "lava" ? "flag" : "clock")}<div><b>${esc(a.titulo)}</b><p>${esc(a.texto + extra)}</p></div><span class="cerrar-aviso">Cerrar</span>`;
     z.hidden = false; pitar(a.tono === "lava" ? 3 : 2);
     clearTimeout(temporizadorAviso); temporizadorAviso = setTimeout(ocultarAvisoSala, 14000);
   }
@@ -1011,7 +1028,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
 <section class="pantalla">
   ${cabecera}
   <div class="panel menta"><span class="ojo">Tu lugar en el juego</span><h2>Sala ${estado.sala} · ${esc(D.lados[estado.lado].rol)} · ${esc(D.lados[estado.lado].nombre)}</h2>
-    <p style="margin-top:6px"><b>Entrá a la sala ${estado.sala} en ${esc(videollamada())}.</b> Ahí van a estar su equipo y el equipo rival. Tu rol en el equipo: ${esc(ROLES[estado.rol].nombre)}.</p>
+    <p style="margin-top:6px"><b>${esc(indicacionSala(estado.sala, estado.lado))}</b> Tu rol en el equipo: ${esc(ROLES[estado.rol].nombre)}.</p>
     ${bloqueada("preparar") ? `<div class="espera-linea"><span class="reloj-arena" aria-hidden="true"></span><p>El administrador abre la preparación en un momento. La pantalla cambia sola.</p></div>` : `<div class="botones" style="margin-top:12px"><a class="boton oro grande" href="#preparar">Ir a prepararme</a></div>`}
   </div>
   ${presenciaHTML()}
@@ -1513,10 +1530,10 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
 <section class="seccion dos">
   <div class="panel"><h3>${esc(videollamada())}, en orden</h3><ol class="pasos">
     <li>Antes de empezar: que el profe haga coanfitriones al administrador y al staff, o que sea él quien abra las salas.</li>
-    <li>Crear de antemano las salas para grupos pequeños «Sala 1» a «Sala ${C.salas || 5}» con «Permitir que los participantes elijan sala». Cuando todos estén en equipos, «Iniciar juego» reparte lados y salas y cada quien ve en su pantalla a qué sala entrar; en «Quién va a cada sala» queda la lista por si alguien se equivoca. Un integrante del staff en cada sala.</li>
+    <li>Crear de antemano las salas para grupos pequeños «${esc(nombreSala(1))}» a «${esc(nombreSala(C.salas || 5))}»${salaPrivada() ? ` y «${esc(nombreSalaCliente(1))}» a «${esc(nombreSalaCliente(C.salas || 5))}» (ahí se prepara en privado cada equipo cliente; al empezar la negociación pasan a su «${esc(nombreSala("n"))}»)` : ""} con «Permitir que los participantes elijan sala». Cuando todos estén en equipos, «Iniciar juego» reparte lados y salas y cada quien ve en su pantalla a qué sala entrar; en «Quién va a cada sala» queda la lista por si alguien se equivoca. Un integrante del staff en cada sala.</li>
     <li>Compartir la ventana del navegador con la pantalla de Entrar, nunca la pantalla completa (esta pestaña se vería).</li>
     <li>Los avisos van por «Transmitir mensaje a todas las salas», en el panel de salas.</li>
-    <li>Al cerrar las salas, Resultados ya tiene los cierres. Si una sala no registró el suyo, su staff lo hace desde el acta; el respaldo es pegar el código del chat. Al revelar, cada equipo ve su resultado.</li>
+    <li>Al cerrar las salas, Resultados ya tiene los cierres; las salas que no cerraron cuentan como sin acuerdo. Al revelar, cada equipo ve su resultado.</li>
   </ol></div>
   <div class="panel suave"><h3>Cómo se lee un código</h3><ul class="lista">
     <li><span class="mono">S3-BEDCD</span>: la sala 3 cerró con esas cinco opciones, una letra por tema.</li>
@@ -1542,7 +1559,6 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   ${verificacionHTML(estado.staffSala, null)}
   <div class="panel suave" id="staff-ahora" style="margin-top:12px">${staffAhoraHTML()}</div>
 </section>
-<section class="seccion"><details class="consultar"><summary>Acta y apuntes (opcional, respaldo)</summary><p class="nota-pie" style="margin:8px 0">Ya no hace falta llevar acta: los equipos marcan su propuesta en la web y aquí se ve la comparación. Esto queda por si el tablero falla o quiere anotar algo.</p><div id="acta">${actaHTML()}</div></details></section>
 <section class="seccion"><h2>Todas las salas</h2><div id="vivo">${vivoHTML()}</div></section>
 <section class="seccion"><h2>Qué toca ahora</h2><div class="cues">${cuesHTML()}</div></section>
 <section class="seccion panel suave"><h3>Reglas que vigila el staff</h3><ul class="lista">${D.contexto.reglas.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p class="nota-pie">Dudas de reglas sí; de estrategia no. Si una sala pregunta «¿qué nos conviene?», la respuesta es «pregúntenle a la otra parte para qué lo necesita».</p></section>`;
@@ -1580,7 +1596,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
   <h2>Antes de la clase</h2>
   <ul class="chequeo">
     <li>Pedirle al profe, que es el anfitrión, que haga co-anfitrión al administrador antes de empezar, o que sea él quien abra las salas.</li>
-    <li>Crear las salas «Sala 1» a «Sala ${C.salas || 5}» en ${esc(videollamada())} con «Permitir que los participantes elijan sala». Los equipos se arman en la web y «Iniciar juego» reparte lados y salas: cada quien entra a la que le dice su pantalla. Un integrante del staff en cada sala.</li>
+    <li>Crear las salas «${esc(nombreSala(1))}» a «${esc(nombreSala(C.salas || 5))}»${salaPrivada() ? ` y «${esc(nombreSalaCliente(1))}» a «${esc(nombreSalaCliente(C.salas || 5))}» (preparación privada del cliente)` : ""} en ${esc(videollamada())} con «Permitir que los participantes elijan sala». Los equipos se arman en la web y «Iniciar juego» reparte lados y salas: cada quien entra a la que le dice su pantalla. Un integrante del staff en cada sala.</li>
     <li>Tener la web abierta en tres pestañas: Admin (privada), Entrar (para compartir) y Resultados (para el cierre). El staff abre Staff con la clave y elige su sala.</li>
     <li>Tener listo el mensaje de ingreso (abajo) y probar que el enlace abre en un celular.</li>
     <li>Compartir la ventana del navegador, no la pantalla completa.</li>
@@ -1859,7 +1875,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
       if (mia.equipo) { estado.equipo = mia.equipo; guardarS("equipo", mia.equipo); }
       if (!VISTAS_FACILITADOR.includes(rutaActual)) {
         sentarse(mia.sala, mia.lado, mia.rol || "ambos");
-        transicion("Sala " + mia.sala + " · " + D.lados[mia.lado].rol, "Entrá a la sala " + mia.sala + " en " + videollamada() + ". Ustedes son " + D.lados[mia.lado].nombre + "; tu rol: " + (ROLES[mia.rol] || ROLES.ambos).nombre + ".", "menta");
+        transicion("Sala " + mia.sala + " · " + D.lados[mia.lado].rol, indicacionSala(mia.sala, mia.lado) + " Ustedes son " + D.lados[mia.lado].nombre + "; tu rol: " + (ROLES[mia.rol] || ROLES.ambos).nombre + ".", "menta");
       }
     } else if (firma) asignacionVista = firma;
   });

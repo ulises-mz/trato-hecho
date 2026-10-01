@@ -21,5 +21,12 @@ window.CONFIG = {
   salas: 5,
 
   // Cómo se llama la videollamada en los textos («entrá a la sala 3 en Zoom»).
-  videollamada: "Zoom"
+  videollamada: "Zoom",
+
+  // Nombres de las salas para grupos pequeños, tal cual se crean en la videollamada ({n} = número).
+  // Cada equipo se prepara en privado: la agencia en «Sala n» (que es también la mesa de negociación)
+  // y el cliente en «Sala n Cliente»; al empezar la negociación el cliente pasa a «Sala n».
+  // Con salaCliente en null, los dos equipos comparten «Sala n» desde el principio.
+  sala: "Sala {n}",
+  salaCliente: "Sala {n} Cliente"
 };
