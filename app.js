@@ -148,6 +148,7 @@
     faseVista: undefined,
     chat: leer("chat", ""),
     revelar: leer("revelar", false),
+    manualResultados: leer("manualResultados", false),
     staffSala: leer("staffSala", 1),
     actas: leer("actas", {})
   };
@@ -376,6 +377,7 @@
       const nota = el.querySelector(".reloj-nota"); if (nota) nota.hidden = !(r.remoto !== undefined && el.dataset.reloj === "equipo");
     });
     actualizarCues(fa);
+    if (rutaActual === "resultados" && tics % 10 === 0) calcular();
     if (rutaActual === "admin" && tics % 2 === 0) { const a = document.getElementById("arranque"); if (a) { const h = arranqueHTML(); if (a.innerHTML !== h) a.innerHTML = h; } }
     const ronda = document.getElementById("ronda"); if (ronda) { const h = rondaHudHTML(); if (ronda.innerHTML !== h) ronda.innerHTML = h; }
     // presión: viñeta que late cuando queda poco tiempo de negociación (solo en vistas de estudiante)
@@ -526,14 +528,19 @@
     return `<div class="vivo-resumen"><span class="estado ${con.conectado ? "ok" : "mal"}">${esc(con.mensaje)}</span><span>${lista.length} salas · ${conteo.cerrado} cerradas · ${conteo.coinciden + conteo.mesa} negociando · ${conteo.ficha} preparándose · ${conteo.vacia} sin entrar</span></div><div class="vivo-grid">${tarjetas}</div>`;
   }
   function pintarVivo() { const z = document.getElementById("vivo"); if (z) z.innerHTML = vivoHTML(); const j = document.getElementById("jugadores"); if (j) j.innerHTML = jugadoresHTML(); const a = document.getElementById("arranque"); if (a) { const h = arranqueHTML(); if (a.innerHTML !== h) a.innerHTML = h; } }
-  function codigosEnVivo() {
-    const salas = vivo.salas || {}, codigos = [], sinCodigo = [];
+  function codigosEnVivo(incluirAbiertas) {
+    const salas = vivo.salas || {}, codigos = [], sinCodigo = [], abiertas = [];
     Object.keys(salas).map(Number).filter(n => n > 0).sort((a, b) => a - b).forEach(n => {
       const s = salas[n];
       if (s.cierre && s.cierre.codigo) codigos.push(s.cierre.codigo);
-      else if (LADOS.some(l => s[l]) || s.acta) { codigos.push("S" + n + "-SIN"); sinCodigo.push(n); }
+      else if (LADOS.some(l => s[l]) || s.acta) { abiertas.push(n); if (incluirAbiertas) { codigos.push("S" + n + "-SIN"); sinCodigo.push(n); } }
     });
-    return { codigos, sinCodigo };
+    return { codigos, sinCodigo, abiertas };
+  }
+  const tiempoAgotado = () => ["debrief", "fin"].includes(faseActual());
+  function resumenVivoHTML() {
+    const { codigos, abiertas } = codigosEnVivo(false), fin = tiempoAgotado();
+    return `<div class="cabecera"><div><span class="ojo">Tablero en vivo</span><h2>${codigos.length} ${codigos.length === 1 ? "sala cerrada" : "salas cerradas"} · ${abiertas.length} ${abiertas.length === 1 ? "sigue" : "siguen"} en la mesa</h2><p class="nota-pie">${fin ? "Se acabó el tiempo: las salas que no registraron cierre cuentan como sin acuerdo." : "Cada sala aparece aquí al registrar su cierre, desde su pantalla de Cerrar o desde el acta del staff. Al acabarse el tiempo, las que no cerraron cuentan como sin acuerdo."}</p></div>${estado.manualResultados ? `<span class="estado aviso">Usando los códigos pegados</span>` : `<span class="estado ok">Automático</span>`}</div>`;
   }
   const revelado = () => !!(enVivo() ? (vivo.config.revelar && vivo.config.revelar.on) : estado.revelar);
 
@@ -544,7 +551,7 @@
       prep30: "Quedan 30 segundos de preparación. Al terminar, la web los pasa a la mesa.",
       faltan3: "Quedan 3 minutos. Si no cierran, cada parte se queda con su plan B.",
       ultimo: "Último minuto. Cierren el trato en la etapa Cerrar, o marquen «sin acuerdo» con la última propuesta que hubo.",
-      cierre: "Se cierran las salas. Si su sala no tiene staff, una sola persona pega el código del trato en el chat de la sala principal."
+      cierre: "Se cierran las salas. Si todavía no registraron el cierre en la web, háganlo ahora en Cerrar: trato hecho o sin acuerdo. Con eso basta."
     };
   }
   function cuesAdmin() {
@@ -559,7 +566,7 @@
       { en: tCierre - 180, titulo: "Aviso: 3 minutos", que: "Transmitir a todas las salas.", msg: M.faltan3 },
       { en: tCierre - 60, titulo: "Aviso: último minuto", que: "Transmitir a todas las salas.", msg: M.ultimo },
       { en: tCierre, titulo: "Cerrar las salas", que: "Zoom: Cerrar todas las salas (cuenta regresiva de 60 s). La web pasa a los equipos a Cerrar. El staff registra el cierre de su sala desde el acta. Transmitir el mensaje de cierre.", msg: M.cierre },
-      { en: tRes, titulo: "Resultados", que: "Compartir la pestaña Resultados. Cargar los códigos en vivo (o pegar el chat), Calcular, nombrar la sala ganadora, Revelar los intereses: cada equipo ve su resultado en su pantalla. Lanzar las tres preguntas." },
+      { en: tRes, titulo: "Resultados", que: "Compartir la pestaña Resultados: ya tiene el ranking con los cierres que registró cada sala; las que no cerraron cuentan como sin acuerdo. Nombrar la sala ganadora, Revelar los intereses (cada equipo ve su resultado en su pantalla) y lanzar las tres preguntas." },
       { en: tFin, titulo: "Fin", que: "Sigue la presentación de los seis puntos de la CEP." }
     ];
   }
@@ -857,11 +864,10 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
   <div class="mesa-escena" id="escena-caja"></div>
   <div class="panel codigo-caja" id="codigo">
     <span class="sello sellar ${cerrado.letras ? "" : "lava"}">${cerrado.letras ? "Trato hecho" : "Sin acuerdo"}</span>
-    <div class="codigo" id="codigo-texto">${esc(codigoDe(estado.sala, cerrado))}</div>
     <p>${explicacion}</p>
-    <p>${enVivo() ? "El código ya le llegó al administrador. Por si acaso, si su sala no tiene staff" : "Si su sala no tiene staff"}, <b>una sola persona de la sala</b> pega este código en el chat al volver.</p>
+    ${enVivo() ? `<p><b>Quedó registrado.</b> El administrador ya lo tiene en su tablero; no hay que copiar ni dictar nada.</p><p class="nota-pie">Código de respaldo, solo si el tablero falla: <span class="mono" id="codigo-texto">${esc(codigoDe(estado.sala, cerrado))}</span></p>` : `<div class="codigo" id="codigo-texto">${esc(codigoDe(estado.sala, cerrado))}</div><p>Si su sala no tiene staff, <b>una sola persona de la sala</b> pega este código en el chat al volver.</p>`}
     ${logrosCierre.length ? `<div class="logros">${logrosCierre.map(x => `<span class="logro" title="${esc(x.texto)}">${esc(x.titulo)}</span>`).join("")}</div>` : ""}
-    <div class="botones"><button type="button" class="boton oro" id="btn-copiar">Copiar código</button><a class="boton menta" href="#resultado">Ver mi resultado</a><button type="button" class="boton fantasma" id="btn-reabrir">${cerrado.letras ? "Cambiar el trato" : "Volver a la mesa"}</button></div>
+    <div class="botones">${enVivo() ? "" : `<button type="button" class="boton oro" id="btn-copiar">Copiar código</button>`}<a class="boton menta" href="#resultado">Ver mi resultado</a><button type="button" class="boton fantasma" id="btn-reabrir">${cerrado.letras ? "Cambiar el trato" : "Volver a la mesa"}</button></div>
   </div>
 </section>`;
     }
@@ -1061,7 +1067,7 @@ ${lab.logros.some(l => l.hecho) ? `<div class="logros">${lab.logros.filter(l => 
 </svg>`;
   }
   function tableroHTML(lista, errores) {
-    if (!lista.length && !errores.length) return `<p class="nota-pie">Todavía no hay códigos. Cárguelos en vivo, pegue el chat o cargue el ejemplo.</p>`;
+    if (!lista.length && !errores.length) return `<p class="nota-pie">${enVivo() && !estado.manualResultados ? "Todavía ninguna sala ha registrado su cierre. Aparecen aquí solas, en cuanto cierren." : "Todavía no hay códigos. Pegue el chat o cargue el ejemplo."}</p>`;
     const mejor = lista.find(f => f.valido && !f.sin);
     const optimo = mejorTrato();
     const apuntesStaff = sala => { const a = enVivo() && vivo.salas && vivo.salas[sala] && vivo.salas[sala].acta ? actaDe(sala) : null; return a && a.notas.length ? ` Apuntes del staff: ${a.notas.map(x => esc(x.texto)).join("; ")}.` : ""; };
@@ -1115,27 +1121,29 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
   }
   function vistaResultados() {
     const selects = D.temas.map((t, i) => `<label class="campo" for="man-${i}">${esc(t.nombre)}<select id="man-${i}" data-manual="${i}">${t.opciones.map(o => `<option value="${o.letra}">${o.letra} · ${esc(o.texto)}</option>`).join("")}</select></label>`).join("");
-    const vivoSi = enVivo(), rev = revelado();
+    const vivoSi = enVivo(), rev = revelado(), manual = !!estado.manualResultados;
     return `
 <section class="seccion">
   <span class="ojo">Facilitadores</span>
   <h1>Resultados</h1>
-  <p class="entrada">${vivoSi ? "«Cargar códigos en vivo» trae lo que registró cada sala; las que entraron y no cerraron cuentan como sin acuerdo. También se puede pegar el chat tal cual. Al calcular y al revelar, cada equipo ve su resultado en su propia pantalla." : "Pegue el chat de la sala principal tal cual: el tablero encuentra los códigos solo."} Si una sala manda dos códigos, vale el último.</p>
+  <p class="entrada">${vivoSi ? "Se llena solo: cada sala aparece cuando registra su cierre, trato hecho o sin acuerdo, desde su pantalla de Cerrar o desde el acta del staff. Nadie tiene que dictar códigos. Al revelar, cada equipo ve su resultado en su propia pantalla." : "Pegue el chat de la sala principal tal cual: el tablero encuentra los códigos solo."} Si una sala registra dos cierres, vale el último.</p>
 </section>
-<section class="seccion panel">
+${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "menta"}" id="resumen-vivo">${resumenVivoHTML()}</div></section>` : ""}
+<section class="seccion" id="tablero"></section>
+<section class="seccion"><div class="botones"><button type="button" class="boton ${rev ? "fantasma" : "menta grande"}" id="btn-revelar">${rev ? "Ocultar la revelación" : "Revelar los intereses"}</button><span class="nota-pie">Hasta que no se pulse, ni la pantalla compartida ni las pantallas de los equipos muestran las tablas del otro lado.</span></div></section>
+<div id="zona-revelacion">${rev ? revelacionHTML() : ""}</div>
+<section class="seccion"><details class="consultar" ${manual || !vivoSi ? "open" : ""}><summary><span>Respaldo: códigos pegados o a mano</span><span class="nota-pie">${vivoSi ? "solo si el tablero en vivo falla" : "pegue aquí el chat"}</span></summary><div class="consultar-cuerpo">
+  ${vivoSi ? `<label class="campo" for="chk-manual" style="display:flex;gap:10px;align-items:center;font-weight:700"><input type="checkbox" id="chk-manual" ${manual ? "checked" : ""} style="width:auto;margin:0">Usar lo pegado aquí en vez del tablero en vivo</label>` : ""}
   <label class="campo" for="chat">Códigos de las salas<textarea id="chat" rows="5" placeholder="S1-BEDCD&#10;S2-SIN-CBCBB-T&#10;…">${esc(estado.chat)}</textarea></label>
-  <div class="botones" style="margin-top:10px">${vivoSi ? `<button type="button" class="boton oro" id="btn-vivo">Cargar códigos en vivo</button>` : ""}<button type="button" class="boton ${vivoSi ? "" : "oro"}" id="btn-calcular">Calcular</button><button type="button" class="boton fantasma" id="btn-ejemplo">Cargar ejemplo</button><button type="button" class="boton fantasma" id="btn-limpiar">Limpiar</button></div>
-  <details style="margin-top:10px"><summary>Agregar una sala a mano</summary>
+  <div class="botones"><button type="button" class="boton oro" id="btn-calcular">Calcular</button><button type="button" class="boton fantasma" id="btn-ejemplo">Cargar ejemplo</button><button type="button" class="boton fantasma" id="btn-limpiar">Limpiar</button></div>
+  <details><summary>Agregar una sala a mano</summary>
     <div class="entrada-manual">
       <label class="campo" for="man-sala">Sala<input type="number" id="man-sala" min="1" max="30" value="1"></label>
       ${selects}
       <div class="botones"><button type="button" class="boton chico" id="btn-manual">Agregar trato</button><button type="button" class="boton chico fantasma" id="btn-manual-sin">Sin acuerdo con esta última propuesta</button><button type="button" class="boton chico fantasma" id="btn-manual-sin-nada">Sin acuerdo, sin detalle</button></div>
     </div>
   </details>
-</section>
-<section class="seccion" id="tablero"></section>
-<section class="seccion"><div class="botones"><button type="button" class="boton ${rev ? "fantasma" : "menta grande"}" id="btn-revelar">${rev ? "Ocultar la revelación" : "Revelar los intereses"}</button><span class="nota-pie">Hasta que no se pulse, ni la pantalla compartida ni las pantallas de los equipos muestran las tablas del otro lado.</span></div></section>
-<div id="zona-revelacion">${rev ? revelacionHTML() : ""}</div>`;
+</div></details></section>`;
   }
 
   /* ---------- admin, staff y guion ---------- */
@@ -1175,7 +1183,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     <li>Crear las salas de antemano con nombre «Sala 1» a «Sala ${C.salas || 6}» y activar «Permitir que los participantes elijan sala». Cuando todos hayan entrado a la web, repartir desde aquí: cada quien ve su sala, su lado y su rol en su pantalla, y entra a esa sala en Zoom. Opciones: mover a todos automáticamente; cerrar a los ${minutos(t.preparacion + t.negociacion)}; cuenta regresiva de ${t.cierre} s. Un integrante del staff en cada sala que se pueda.</li>
     <li>Compartir la ventana del navegador con la pantalla de Entrar, nunca la pantalla completa (esta pestaña se vería).</li>
     <li>Los avisos van por «Transmitir mensaje a todas las salas», en el panel de salas.</li>
-    <li>Al cerrar las salas, cargar los códigos en vivo en Resultados; si alguno falta, pedirlo por el chat. Al revelar, cada equipo ve su resultado.</li>
+    <li>Al cerrar las salas, Resultados ya tiene los cierres. Si una sala no registró el suyo, su staff lo hace desde el acta; el respaldo es pegar el código del chat. Al revelar, cada equipo ve su resultado.</li>
   </ol></div>
   <div class="panel suave"><h3>Cómo se lee un código</h3><ul class="lista">
     <li><span class="mono">S3-BEDCD</span>: la sala 3 cerró con esas cinco opciones, una letra por tema.</li>
@@ -1250,7 +1258,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     <div class="minuto"><span class="cuando">${mmss(t.consigna)}</span><div><b>Preparación · ${minutos(t.preparacion)}</b><p>Salas abiertas. La web pone a cada pareja en Prepararse: seis pasos con el caso, quiénes son, sus intereses, su tabla y plan B, la hoja de preparación y su rol, con el tutorial animado. El staff elige su sala en la vista Staff y resuelve dudas de reglas. Aviso a las salas a los 30 segundos del final.</p></div></div>
     <div class="minuto"><span class="cuando">${mmss(inicioNeg)}</span><div><b>Negociación · ${minutos(t.negociacion)}</b><p>La web abre la mesa: la escena con los cuatro sentados, las rondas, los temas y el termómetro. El analista de cada lado marca las propuestas y guarda ofertas; el staff marca en el acta lo acordado y anota qué pasa. Avisos a las salas a los 3 minutos y al último minuto.</p></div></div>
     <div class="minuto"><span class="cuando">${mmss(inicioCierre)}</span><div><b>Cierre · ${minutos(t.cierre)}</b><p>La web pasa a los equipos a Cerrar: trato hecho con los cinco temas (se dan la mano), o sin acuerdo con la última propuesta y quién la rechazó (se levantan de la mesa). El staff registra el cierre desde el acta. Cerrar las salas con la cuenta regresiva.</p></div></div>
-    <div class="minuto"><span class="cuando">${mmss(inicioDebrief)}</span><div><b>Resultados · ${minutos(t.debrief)}</b><p>Cargar los códigos en vivo (o pegar el chat) y calcular. Nombrar la sala ganadora y leer su trato en voz alta. Si hubo salas sin acuerdo, decir cuáles se levantaron con razón y cuáles dejaron un trato en la mesa; los apuntes del staff cuentan por qué. Pulsar «Revelar los intereses»: cada equipo ve en su pantalla los puntos del otro lado, su índice y su puesto. Cerrar con las tres preguntas; recoger dos respuestas en voz.</p>
+    <div class="minuto"><span class="cuando">${mmss(inicioDebrief)}</span><div><b>Resultados · ${minutos(t.debrief)}</b><p>Resultados ya tiene el ranking con lo que registró cada sala. Nombrar la sala ganadora y leer su trato en voz alta. Si hubo salas sin acuerdo, decir cuáles se levantaron con razón y cuáles dejaron un trato en la mesa; los apuntes del staff cuentan por qué. Pulsar «Revelar los intereses»: cada equipo ve en su pantalla los puntos del otro lado, su índice y su puesto. Cerrar con las tres preguntas; recoger dos respuestas en voz.</p>
       <div class="dice">«La sala que ganó no fue la que consiguió el mejor precio. Fue la que preguntó para qué necesitaba el otro lo que pedía.»</div></div></div>
     <div class="minuto"><span class="cuando">${mmss(fin)}</span><div><b>Fin</b><p>De aquí en adelante sigue la presentación: la actividad ya puso en la mesa los seis puntos de la CEP.</p></div></div>
   </div>
@@ -1270,7 +1278,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     <li><b>Campos de aplicación.</b> Fue cliente y proveedor; la misma lógica sirve con socios y con el equipo.</li>
   </ul></div>
   <div class="panel suave"><h3>Si algo falla</h3><ul class="lista">
-    <li><b>El tablero en vivo no conecta.</b> No pasa nada: cada equipo lleva su propio reloj desde Prepararse, el staff registra el cierre igual y pega el código en el chat; Resultados lo lee pegado.</li>
+    <li><b>El tablero en vivo no conecta.</b> No pasa nada: cada equipo lleva su propio reloj desde Prepararse y ve su código al cerrar; una persona por sala lo pega en el chat y Resultados lo lee pegado (respaldo).</li>
     <li><b>La web no abre.</b> Mandar las fichas en PDF por el chat de cada sala. El staff lleva el acta en papel y dice los tratos en voz alta al volver; el administrador los mete a mano en el tablero.</li>
     <li><b>No se pueden abrir salas.</b> Modo pecera: dos parejas negocian en la sala principal con cámara, el resto observa y anota en el chat qué preguntas hicieron. Dura lo mismo.</li>
     <li><b>Van tarde.</b> Preparación de 2 minutos y negociación de 5, con «Siguiente fase» en el panel Admin. El resto igual.</li>
@@ -1313,11 +1321,17 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     const d = document.querySelector(`.paso[data-paso="${id}"]`); if (d) d.classList.add("lista");
     const conteo = document.getElementById("prep-conteo"); if (conteo) { const pasos = pasosPrep(); const listos = pasos.filter(p => p.hecha || estado.prepVistos.includes(p.id)).length; conteo.textContent = listos + " de " + pasos.length; const barra = document.querySelector(".progreso-prep .lleno"); if (barra) barra.style.width = Math.round(listos / pasos.length * 100) + "%"; }
   }
+  let codigosPublicados = null;
   function calcular() {
     const zona = document.getElementById("tablero"); if (!zona) return;
+    if (enVivo() && !estado.manualResultados) {
+      estado.chat = codigosEnVivo(tiempoAgotado()).codigos.join("\n"); guardar("chat", estado.chat);
+      const ta = document.getElementById("chat"); if (ta && document.activeElement !== ta) ta.value = estado.chat;
+    }
     const { filas, errores } = parsearCodigos(estado.chat);
-    zona.innerHTML = tableroHTML(ordenar(filas), errores);
-    if (enVivo() && tieneClave()) Sync.fijar("config/codigos", estado.chat || "");
+    const h = tableroHTML(ordenar(filas), errores); if (zona.innerHTML !== h) zona.innerHTML = h;
+    const r = document.getElementById("resumen-vivo"); if (r) { const rh = resumenVivoHTML(); if (r.innerHTML !== rh) r.innerHTML = rh; }
+    if (enVivo() && tieneClave() && estado.chat !== codigosPublicados) { codigosPublicados = estado.chat; Sync.fijar("config/codigos", estado.chat || ""); }
   }
   function agregarCodigo(codigo) {
     estado.chat = (estado.chat ? estado.chat.trimEnd() + "\n" : "") + codigo; guardar("chat", estado.chat);
@@ -1418,19 +1432,14 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
       case "btn-acta-cerrar": { const acta = actaDe(estado.staffSala), letras = D.temas.map((t, i) => acta.temas[i] || null); if (!letras.every(Boolean)) return; cerrarActa({ letras }); break; }
       case "btn-acta-sin": document.getElementById("acta-panel-sin").hidden = false; break;
       case "btn-acta-reabrir": { const n = estado.staffSala, acta = actaDe(n); delete acta.cierre; if (estado.actas[n]) delete estado.actas[n].cierre; guardar("actas", estado.actas); Sync.fijar("salas/" + n + "/cierre", null); Sync.fijar("salas/" + n + "/acta", acta); pintarActa(); break; }
-      case "btn-calcular": estado.chat = document.getElementById("chat").value; guardar("chat", estado.chat); calcular(); break;
-      case "btn-vivo": {
-        const { codigos, sinCodigo } = codigosEnVivo();
-        if (!codigos.length) { avisar("Ninguna sala ha registrado nada todavía."); return; }
-        estado.chat = codigos.join("\n"); guardar("chat", estado.chat); document.getElementById("chat").value = estado.chat; calcular();
-        avisar(codigos.length + " salas cargadas" + (sinCodigo.length ? "; sin código, como sin acuerdo: " + sinCodigo.map(n => "S" + n).join(", ") : "")); break;
-      }
-      case "btn-ejemplo": estado.chat = D.ejemplo.map(x => x.codigo).join("\n"); guardar("chat", estado.chat); document.getElementById("chat").value = estado.chat; calcular(); break;
-      case "btn-limpiar": estado.chat = ""; guardar("chat", ""); document.getElementById("chat").value = ""; calcular(); break;
+      case "btn-calcular": estado.chat = document.getElementById("chat").value; guardar("chat", estado.chat); if (enVivo() && !estado.manualResultados && estado.chat.trim()) { estado.manualResultados = true; guardar("manualResultados", true); render(); return; } calcular(); break;
+      case "btn-ejemplo": estado.chat = D.ejemplo.map(x => x.codigo).join("\n"); guardar("chat", estado.chat); if (enVivo()) { estado.manualResultados = true; guardar("manualResultados", true); } render(); break;
+      case "btn-limpiar": estado.chat = ""; guardar("chat", ""); if (enVivo()) { estado.manualResultados = false; guardar("manualResultados", false); } render(); break;
       case "btn-manual": case "btn-manual-sin": case "btn-manual-sin-nada": {
         const sala = parseInt(document.getElementById("man-sala").value, 10); if (!(sala > 0)) { avisar("Falta el número de sala."); return; }
         const letras = D.temas.map((t, i) => document.getElementById("man-" + i).value);
         const cierre = b.id === "btn-manual" ? { letras } : b.id === "btn-manual-sin" ? { letras: null, ultima: letras, quien: null } : { letras: null, ultima: null, quien: null };
+        if (enVivo() && !estado.manualResultados) { estado.manualResultados = true; guardar("manualResultados", true); }
         agregarCodigo(codigoDe(sala, cierre)); break;
       }
       case "btn-revelar": { const nuevo = !revelado(); estado.revelar = nuevo; guardar("revelar", nuevo); if (enVivo()) Sync.fijar("config/revelar", { on: nuevo, ts: Date.now() }); render(); if (nuevo) { const r = document.getElementById("revelacion"); if (r) r.scrollIntoView(); } break; }
@@ -1445,11 +1454,12 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
       case "btn-repartir": case "btn-repartir-todos": { const n = parseInt((document.getElementById("rep-salas") || {}).value, 10) || C.salas || 6; const k = repartir(n, b.id === "btn-repartir-todos"); avisar(k ? k + " personas repartidas en " + n + " salas" : "No hay a quién repartir."); break; }
       case "btn-reiniciar": document.getElementById("confirmar-reinicio").hidden = false; break;
       case "btn-reiniciar-no": document.getElementById("confirmar-reinicio").hidden = true; break;
-      case "btn-reiniciar-si": Sync.borrarTodo(); RELOJES.admin.fijar(null); vivo.salas = {}; vivo.jugadores = {}; vivo.config = {}; estado.actas = {}; guardar("actas", null); estado.revelar = false; guardar("revelar", false); document.getElementById("confirmar-reinicio").hidden = true; pintarVivo(); anunciar(); avisar("Sesión reiniciada"); break;
+      case "btn-reiniciar-si": Sync.borrarTodo(); RELOJES.admin.fijar(null); vivo.salas = {}; vivo.jugadores = {}; vivo.config = {}; estado.actas = {}; guardar("actas", null); estado.revelar = false; guardar("revelar", false); estado.manualResultados = false; guardar("manualResultados", false); estado.chat = ""; guardar("chat", ""); codigosPublicados = null; document.getElementById("confirmar-reinicio").hidden = true; pintarVivo(); anunciar(); avisar("Sesión reiniciada"); break;
     }
   });
   app.addEventListener("change", e => {
     const r = e.target;
+    if (r.id === "chk-manual") { estado.manualResultados = r.checked; guardar("manualResultados", r.checked); render(); return; }
     if (r.name && r.name.startsWith("tema-")) { estado.trato[parseInt(r.name.slice(5), 10)] = r.value; guardarS("trato", estado.trato); const suma = actualizarCalculadora(); reportar({ fase: "mesa", propuesta: propuestaActual(), puntos: suma }); }
   });
   app.addEventListener("toggle", e => { const d = e.target; if (d.classList && d.classList.contains("paso") && d.open && d.dataset.paso !== "hoja") marcarPaso(d.dataset.paso); }, true);
@@ -1460,7 +1470,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
       const notas = leerS("prep." + estado.lado, {}); notas[t.dataset.prep] = t.value; guardarS("prep." + estado.lado, notas);
       clearTimeout(temporizadorPrep); temporizadorPrep = setTimeout(() => { const n = Object.values(notas).filter(v => v && v.trim()).length; reportar({ prep: n }); if (n >= 2) marcarPaso("hoja"); const est = document.querySelector('.paso[data-paso="hoja"] .paso-estado'); if (est) est.textContent = n >= 2 ? "lista" : n + "/3 respuestas"; }, 500);
     }
-    if (t.id === "chat") { estado.chat = t.value; guardar("chat", estado.chat); }
+    if (t.id === "chat") { estado.chat = t.value; guardar("chat", estado.chat); if (enVivo() && !estado.manualResultados) { estado.manualResultados = true; guardar("manualResultados", true); const c = document.getElementById("chk-manual"); if (c) c.checked = true; } }
   });
   document.addEventListener("keydown", e => { const b = e.target.closest && e.target.closest("[role='button']"); if (b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); b.click(); } });
   /* tooltip del gráfico */
@@ -1482,7 +1492,7 @@ ${mejor ? `<div class="podio"><span class="cinta">Mejor negociación</span><div 
     vivo.reloj = v.reloj || null; tick();
     if (rutaActual === "resultado" || rutaActual === "resultados") { const rev = revelado(); if (rev !== (app.dataset.revelado === "1")) { app.dataset.revelado = rev ? "1" : "0"; render(); } }
   });
-  Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); });
+  Sync.escuchar("salas", v => { vivo.salas = v || {}; limpiarAsientos(); pintarVivo(); pintarPresencia(); pintarEscena(); if (rutaActual === "entrar") pintarLobby(); if (rutaActual === "staff") pintarActa(); if (rutaActual === "resultados") calcular(); });
   let asignacionVista = null;
   Sync.escuchar("jugadores", v => {
     vivo.jugadores = v || {}; pintarConectados(); if (rutaActual === "admin") pintarVivo();
