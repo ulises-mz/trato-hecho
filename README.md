@@ -1,0 +1,254 @@
+# Trato Hecho
+
+Simulador de negociación para la exposición de la CEP **Negociación** del Grupo 4
+(Desarrollo de Emprendedores, TEC, II semestre 2026). Es una web estática: se
+despliega en cualquier hosting de archivos (Vercel, GitHub Pages, Netlify) y no
+se cae por carga. El tablero en vivo, opcional, usa Firebase sin servidor propio.
+
+**En producción:** <https://trato-hecho-nine.vercel.app> (Vercel, proyecto `trato-hecho`, desplegado desde
+la carpeta `tareas/exposicion-negociacion/trato-hecho` del repositorio del hub;
+la carpeta raíz está fijada en la configuración del proyecto: sin ella, un
+despliegue publica el panel del hub en vez de la web).
+
+## La actividad en una frase
+
+Dos contra dos en cada sala de Zoom: una **agencia digital** le vende un paquete
+(sitio web, logo, redes) a una **cafetería** que abre pronto. Cinco temas sobre la
+mesa, tabla de puntos privada por lado, plan B que marca el mínimo, y un índice
+ganar-ganar que decide qué sala negoció mejor.
+
+| Fase | Dura | Qué pasa |
+|---|---:|---|
+| Consigna | 1 min | Se lee el caso y las cuatro reglas en la sala principal; se abren las salas |
+| Preparación | 3 min | Cada lado lee su ficha privada y llena la hoja de preparación |
+| Negociación | 7 min | Hablan y marcan las opciones en la mesa; la calculadora muestra solo sus puntos |
+| Cierre | 1 min | Una persona registra el trato y pega el código (`S3-BEDCD`, o `S4-SIN-EDCAB-C` si no cerraron) en el chat |
+| Resultados | 3 min | El tablero calcula, rankea, grafica y revela los intereses de los dos lados |
+
+**15 minutos en total.** El guion minuto a minuto, los mensajes para pegar en Zoom
+y el plan por si algo falla están dentro de la web, en `#guion`. El administrador
+lleva la sesión desde `#admin`: un reloj con las cinco fases y los avisos que se
+iluminan cuando toca transmitirlos a las salas, con botón de copiar.
+
+## Códigos de trato
+
+| Código | Significa |
+|---|---|
+| `S3-BEDCD` | La sala 3 cerró con esas cinco opciones, una letra por tema |
+| `S4-SIN-EDCAB-C` | La sala 4 no cerró; la última propuesta fue `EDCAB` y la rechazó el cliente (`A` la agencia, `T` se acabó el tiempo) |
+| `S8-SIN` | No cerró y no registró detalle |
+
+La web los genera; el tablero los lee del chat pegado tal cual, con espacios o
+minúsculas, y toma el último de cada sala.
+
+## Cómo se decide la mejor negociación
+
+- Cada lado suma los puntos de las opciones acordadas (máximo 100).
+- **Índice ganar-ganar** = puntos de las dos partes − ½ de la diferencia entre
+  ellas. 70 y 70 dan 140; 95 y 45 dan 115.
+- Un trato que deja a una parte por debajo de su plan B **no cuenta**.
+- Sin acuerdo = cada parte se queda con su plan B (45 la agencia, 40 el cliente),
+  índice 82,5. Para evaluar *cómo* no cerraron, al registrarlo se anota la última
+  propuesta que hubo sobre la mesa y quién la rechazó:
+  - si esa propuesta superaba el plan B de los dos, es un **trato perdido** (se
+    muestra cuánto valor dejaron: índice de la propuesta − 82,5) y la sala queda
+    detrás de las que se levantaron con razón;
+  - si dejaba a alguien por debajo de su plan B, **levantarse fue correcto**;
+  - sin detalle, se evalúa solo con los planes B.
+
+El mejor trato posible es `BEDCD` (71 / 73, índice 143). Las salas que solo
+regatean el precio se quedan cerca de 113; las que preguntan «¿para qué lo
+necesita?» y cambian lo barato por lo caro pasan de 130.
+
+## Roles y tablero en vivo
+
+| Rol | Vista | Qué hace |
+|---|---|---|
+| Estudiantes | Inicio, Mi ficha, Mesa | Escriben su nombre y entran desde el **lobby**: las salas con sus asientos de agencia y cliente, donde se ve llegar a los demás en tiempo real (avatar con iniciales y rol). La ficha es un dossier por pestañas (Resumen, Intereses, Puntos, Guion, Preparación) con la franja de quién está en cada lado; la mesa funciona como apuntes: termómetro de puntos contra el plan B, propuesta sobre la mesa, registro de ofertas (nuestras y de ellos) y notas rápidas |
+| Vocero / Analista | Mi ficha | En cada pareja uno habla y el otro lleva la cuenta. El vocero abre en la pestaña Guion (qué decir, qué preguntar, qué defender y qué cambiar); el analista abre en Puntos. Quien está solo elige «Los dos» |
+| Administrador | `#admin` | Reloj de las cinco fases que manda sobre los relojes de los equipos, avisos que se iluminan cuando toca, tablero de salas en vivo, reinicio de sesión |
+| Staff | `#staff` | Escribano de su sala: elige la sala, marca en el acta lo que se va acordando, anota qué pasa con un toque y registra el cierre (trato hecho o sin acuerdo). Debajo, todas las salas en vivo |
+| Resultados | `#resultados` | Carga los códigos en vivo o el chat pegado, rankea, grafica, revela y muestra los apuntes del staff de cada sala |
+
+Admin, Staff, Resultados y Guion piden la **clave** de `config.js`
+(`claveStaff`, de fábrica `grupo4`: cambiarla). Los enlaces a esas vistas
+aparecen en la barra solo después de entrar con la clave.
+
+El **tablero en vivo** muestra, por sala, quién entró, en qué fase va cada
+lado (ficha, mesa, cerró), la propuesta que cada lado tiene marcada (`BE?CD`),
+si las dos propuestas ya coinciden, el código del cierre y cuánto hace que no
+hay actividad. Necesita un canal compartido entre dispositivos. Cuatro modos,
+en `config.js`:
+
+| `firebase:` | Qué pasa |
+|---|---|
+| `"servidor"` | **El de producción.** La web la sirve `servidor/index.js` (Docker, Coolify): canal en vivo propio con base incluida, sin cuentas ni claves que configurar |
+| `null` | Sin tablero en vivo. Cada equipo lleva su reloj y los códigos viajan por el chat. Siempre funciona |
+| `"local"` | Ensayo en una computadora: las pestañas de un mismo navegador se ven entre sí. También con `?sync=local` en la dirección |
+| `{ … }` | Firebase Realtime Database: tablero en vivo entre dispositivos sin servidor propio (alternativa, no hace falta con el servidor) |
+
+Si la copia está en un hosting estático (Vercel, GitHub Pages) con
+`"servidor"`, la web lo detecta al arrancar (`/api/salud` no responde) y sigue
+sin tablero en vivo, avisándolo en Admin.
+
+### El servidor propio (Docker / Coolify)
+
+[`servidor/index.js`](servidor/index.js) no tiene dependencias: `http` y
+`node:sqlite` de Node 22+. Sirve los archivos de esta carpeta con direcciones
+limpias (`/fichas` → `fichas.html`) y expone el canal en vivo:
+
+```
+GET    /api/salud                             estado y conexiones abiertas
+GET    /api/sesiones/<sesion>                 el árbol completo de la sesión
+GET    /api/sesiones/<sesion>/eventos         SSE: «arbol» al conectar, después un «cambio» por escritura
+POST   /api/sesiones/<sesion>/escribir        { ruta, datos, modo }   modo: fusionar (update) o fijar (set; datos null borra)
+DELETE /api/sesiones/<sesion>                 borra la sesión (lo que hace «Reiniciar la sesión» en Admin)
+```
+
+Cada sesión se guarda como un árbol JSON en una tabla de SQLite
+(`datos/trato-hecho.sqlite`; si `node:sqlite` no existe, cae a
+`datos/sesiones.json`). Es la misma estructura que con Firebase (abajo), así
+que `app.js` no distingue el motor. Las escrituras son optimistas: la pestaña
+aplica el cambio de una vez y el servidor lo confirma a todas las demás.
+
+Lo que hay que saber para la clase:
+
+- **La base vive dentro del contenedor.** Volver a desplegar la crea de cero
+  (igual que «Reiniciar la sesión»). No desplegar durante la actividad.
+- No hay autenticación en la API, a propósito: es una actividad de 15 minutos
+  con una clave de facilitador en la web. Cuando pase la clase, apagar el
+  sitio o reiniciar la sesión.
+- `datos/`, `servidor/` y los archivos ocultos no se sirven.
+
+Correr local con tablero en vivo:
+
+```bash
+node servidor/index.js            # http://127.0.0.1:3000/  (PORT y DATOS son variables opcionales)
+docker build -t trato-hecho . && docker run -p 3000:3000 trato-hecho
+```
+
+### Configurar Firebase (alternativa sin servidor; una vez, cinco minutos)
+
+1. Entrar a <https://console.firebase.google.com> con una cuenta de Google y
+   **Agregar proyecto** (nombre libre; Analytics se puede apagar).
+2. En el menú **Compilación → Realtime Database → Crear base de datos**.
+   Ubicación: Estados Unidos. Modo: **de prueba** (abre lectura y escritura
+   30 días; para la clase basta). Si prefiere reglas explícitas, pegar las de
+   [`firebase-rules.json`](firebase-rules.json) en la pestaña **Reglas**.
+3. En **Configuración del proyecto** (el engranaje) → **Tus apps → Web** (icono
+   `</>`), registrar la app y copiar el objeto `firebaseConfig`.
+4. Pegarlo en `config.js` como valor de `firebase:` y publicar. Tiene que
+   incluir `databaseURL`; si no aparece, se copia de la pantalla de la base
+   (`https://<proyecto>-default-rtdb.firebaseio.com`).
+5. Abrir `#admin`, pulsar **Probar conexión**: debe decir «Conexión OK».
+
+Esas claves son públicas por diseño (van en la web); lo que protege la base
+son las reglas. Cuando pase la clase, cerrar la base cambiando las reglas a
+`false` o borrando el proyecto. Si Firebase no carga, la web sigue funcionando
+sin tablero en vivo.
+
+### Qué guarda la base
+
+El mismo árbol en los dos motores (en el servidor, bajo la fila de la sesión):
+
+```
+sesiones/<sesion>/config/reloj         inicio del reloj del administrador
+sesiones/<sesion>/salas/<n>/agencia    { entrado, fase, propuesta, puntos, prep, actualizado }
+sesiones/<sesion>/salas/<n>/cliente    igual
+sesiones/<sesion>/salas/<n>/cierre     { codigo, por, ts }        por: agencia, cliente o staff
+sesiones/<sesion>/salas/<n>/acta       { temas, notas, actualizado } lo que marca el staff
+sesiones/<sesion>/salas/<n>/gente/<id> { nombre, lado, rol, entrado, actualizado } quién está (por pestaña)
+```
+
+Los nombres que escriben los estudiantes viven solo en la base de la sesión
+(o en el navegador, en modo local) y se borran con «Reiniciar la sesión».
+
+`sesion` sale de `config.js` (o de `?sesion=ensayo` en la dirección): así un
+ensayo no se mezcla con la clase. **Reiniciar la sesión** en Admin borra todo
+lo de esa sesión.
+
+## Archivos
+
+```
+index.html      la web y su hoja de estilo (inicio, ficha, mesa, resultados, admin, staff, guion)
+app.js          lógica: rutas, relojes, calculadora, códigos, tablero, gráfico, en vivo
+datos.js        EL CASO: textos, opciones, puntos, plan B, tiempos. Cambiar aquí
+config.js       LA INSTALACIÓN: motor en vivo (servidor, local o Firebase), nombre de sesión, clave, salas
+sync.js         canal en vivo: servidor propio (REST + SSE), Firebase o localStorage
+servidor/       el servidor: sirve la web y guarda las sesiones en SQLite (sin dependencias)
+Dockerfile      imagen para Coolify o cualquier Docker: node:24-alpine, puerto 3000
+firebase-rules.json  reglas de la base si se usa Firebase
+fichas.html     versión imprimible de las fichas (fichas.html?lado=agencia)
+fichas/         las fichas en PDF, por si la web no abre en clase
+puntuar.py      el mismo cálculo desde la terminal, para revisar o rehacer el ranking
+herramientas/   script que regenera los PDF y las capturas (necesita Playwright)
+vercel.json     cabeceras noindex; no hay build
+```
+
+Todo el contenido sale de `datos.js`. Para cambiar un precio, un punto o un
+consejo se edita ahí y la web, los PDF y `puntuar.py` cambian juntos. El objeto
+es JSON válido a propósito.
+
+## Correr y desplegar
+
+Local:
+
+```bash
+node servidor/index.js           # con tablero en vivo: http://127.0.0.1:3000/
+python3 -m http.server 8765      # solo la web estática (sin tablero): http://127.0.0.1:8765/?sync=local para ensayar
+```
+
+**Producción (Coolify):** el sitio se construye con el `Dockerfile` de esta
+carpeta desde el repositorio público `ulises-mz/trato-hecho`, que es una copia
+de esta carpeta (el hub es privado y el conector de Coolify solo despliega
+repositorios públicos). Puerto 3000, dominio `https://tratohecho.siriusx.net`
+(el comodín de siriusx.net ya apunta al servidor; no hay DNS que tocar). Para
+publicar un cambio: copiar la carpeta al repo público, commitear y volver a
+desplegar desde Coolify o pedirlo en la sesión.
+
+**Copia estática (Vercel):** el proyecto `trato-hecho` de Vercel sigue ligado
+al repositorio del hub con esta carpeta como raíz, sin build. Sirve como
+respaldo si el servidor no responde: la web funciona igual, pero sin tablero
+en vivo (los códigos van por el chat).
+
+## El laboratorio guiado
+
+La mesa se juega como un laboratorio:
+
+- **Rondas** que salen del reloj del administrador: Abrir (0–2 min), Descubrir
+  (2–4), Intercambiar (4–6) y Cerrar (6–7), cada una con su consigna visible.
+- **Seis misiones** con barra de progreso y aviso al cumplirlas: prepararse,
+  abrir con su posición, escuchar su oferta, descubrir un interés, superar su
+  plan B y cerrar. Se cumplen solas con lo que el equipo registra.
+- **Logros**: oído fino (dos apuntes), intercambio (cambiar dos temas y seguir
+  sobre el plan B), valor creado (cerrar 15 o más sobre el plan B) y firmeza
+  (levantarse cuando lo que había era peor que el plan B). Aparecen en el
+  cierre y el tablero del admin los cuenta.
+
+## El video
+
+[`../video/como-jugar.mp4`](../video/como-jugar.mp4) (1:57, 1280×720) explica
+cómo jugar según el rol, con voz en off y subtítulos (`como-jugar.srt`). Las
+fuentes están en `../video/`: guion, línea de tiempo y la animación en HTML
+que se graba con Playwright; el script `pipeline.py` regenera voz y video.
+
+Sin Firebase no hace falta backend: los códigos viajan por el chat de Zoom y el
+tablero (`#resultados`) recibe el chat pegado tal cual. Con Firebase, además,
+«Cargar códigos en vivo» trae lo que registró cada sala y cuenta como sin
+acuerdo a las que entraron y no cerraron. Siempre se pueden agregar salas a mano.
+
+## Puntuar desde la terminal
+
+```bash
+python3 puntuar.py S1-BEDCD S2-SIN-CBCBB-T S3-CBCBB
+python3 puntuar.py < chat.txt
+python3 puntuar.py --optimo
+```
+
+## Regenerar los PDF y las capturas
+
+```bash
+cd herramientas && npm i playwright && npx playwright install chromium && cd ..
+python3 -m http.server 8765 &
+node herramientas/capturas.js
+```

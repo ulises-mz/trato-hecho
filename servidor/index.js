@@ -1,0 +1,119 @@
+/* Servidor de Trato Hecho: sirve la web y da el canal en vivo entre dispositivos.
+   Sin dependencias: http y node:sqlite (Node 22.13 o más). Guarda cada sesión como un árbol
+   JSON en una tabla y avisa a los conectados por eventos (SSE) cada vez que algo cambia.
+
+   API, todo bajo /api/sesiones/<sesion>:
+     GET    /                      el árbol completo
+     GET    /eventos               flujo SSE: manda el árbol completo en cada cambio
+     POST   /escribir  {ruta, datos, modo}   modo "fusionar" (update) o "fijar" (set; datos null borra)
+     DELETE /                      borra la sesión
+   Las rutas son como en Firebase: "salas/3/gente/abc". Nombres de sesión: letras, números, guion. */
+"use strict";
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+
+const PUERTO = parseInt(process.env.PORT || "3000", 10);
+const RAIZ = path.resolve(__dirname, "..");
+const CARPETA_DATOS = process.env.DATOS || path.join(RAIZ, "datos");
+const MAX_CUERPO = 64 * 1024;
+const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".pdf": "application/pdf", ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8", ".mp4": "video/mp4", ".srt": "text/plain; charset=utf-8" };
+
+/* ---------- almacenamiento: SQLite si existe node:sqlite, si no un archivo JSON ---------- */
+fs.mkdirSync(CARPETA_DATOS, { recursive: true });
+let almacen;
+try {
+  const { DatabaseSync } = require("node:sqlite");
+  const db = new DatabaseSync(path.join(CARPETA_DATOS, "trato-hecho.sqlite"));
+  db.exec("CREATE TABLE IF NOT EXISTS sesiones (nombre TEXT PRIMARY KEY, arbol TEXT NOT NULL, actualizado INTEGER NOT NULL)");
+  const leer = db.prepare("SELECT arbol FROM sesiones WHERE nombre = ?");
+  const guardar = db.prepare("INSERT INTO sesiones (nombre, arbol, actualizado) VALUES (?, ?, ?) ON CONFLICT(nombre) DO UPDATE SET arbol = excluded.arbol, actualizado = excluded.actualizado");
+  const borrar = db.prepare("DELETE FROM sesiones WHERE nombre = ?");
+  almacen = {
+    tipo: "sqlite",
+    leer: n => { const f = leer.get(n); return f ? JSON.parse(f.arbol) : {}; },
+    guardar: (n, a) => guardar.run(n, JSON.stringify(a), Date.now()),
+    borrar: n => borrar.run(n)
+  };
+} catch (e) {
+  const archivo = path.join(CARPETA_DATOS, "sesiones.json");
+  const todo = fs.existsSync(archivo) ? JSON.parse(fs.readFileSync(archivo, "utf8")) : {};
+  const persistir = () => fs.writeFileSync(archivo, JSON.stringify(todo));
+  almacen = { tipo: "json", leer: n => todo[n] || {}, guardar: (n, a) => { todo[n] = a; persistir(); }, borrar: n => { delete todo[n]; persistir(); } };
+}
+console.log("almacenamiento:", almacen.tipo, "en", CARPETA_DATOS);
+
+/* ---------- árbol ---------- */
+const partesDe = ruta => String(ruta || "").split("/").filter(Boolean);
+function poner(arbol, ruta, valor, fusionar) {
+  const partes = partesDe(ruta);
+  if (!partes.length) return valor === null ? {} : (fusionar ? Object.assign(arbol, valor) : valor);
+  let o = arbol;
+  for (let i = 0; i < partes.length - 1; i++) { if (!o[partes[i]] || typeof o[partes[i]] !== "object") o[partes[i]] = {}; o = o[partes[i]]; }
+  const k = partes[partes.length - 1];
+  if (valor === null) delete o[k];
+  else if (fusionar && o[k] && typeof o[k] === "object" && typeof valor === "object" && !Array.isArray(valor)) Object.assign(o[k], valor);
+  else o[k] = valor;
+  return arbol;
+}
+
+/* ---------- eventos ---------- */
+const oyentes = new Map(); // sesion -> Set<res>
+// Al conectarse, cada cliente recibe el árbol completo ("arbol"); después solo cada cambio ("cambio":
+// {ruta, datos, modo}), que aplica localmente. Así 30 celulares con latidos cada 20 s no bajan el árbol entero cada vez.
+function avisar(sesion, evento, cuerpo) {
+  const linea = `event: ${evento}\ndata: ${JSON.stringify(cuerpo)}\n\n`;
+  for (const res of oyentes.get(sesion) || []) { try { res.write(linea); } catch (e) { /* se fue */ } }
+}
+setInterval(() => { for (const grupo of oyentes.values()) for (const res of grupo) { try { res.write(": latido\n\n"); } catch (e) { /* nada */ } } }, 25000);
+
+/* ---------- utilidades http ---------- */
+const json = (res, codigo, cuerpo) => { res.writeHead(codigo, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); res.end(JSON.stringify(cuerpo)); };
+function leerCuerpo(req) {
+  return new Promise((resolver, rechazar) => {
+    let datos = ""; req.on("data", t => { datos += t; if (datos.length > MAX_CUERPO) { rechazar(new Error("cuerpo demasiado grande")); req.destroy(); } });
+    req.on("end", () => { try { resolver(datos ? JSON.parse(datos) : {}); } catch (e) { rechazar(new Error("JSON inválido")); } });
+    req.on("error", rechazar);
+  });
+}
+const sesionValida = s => /^[\w-]{1,40}$/.test(s);
+
+/* ---------- servidor ---------- */
+const servidor = http.createServer(async (req, res) => {
+  const url = new URL(req.url, "http://x");
+  const m = url.pathname.match(/^\/api\/sesiones\/([^/]+)(\/eventos|\/escribir)?\/?$/);
+  if (m) {
+    const sesion = m[1], accion = m[2] || "";
+    if (!sesionValida(sesion)) return json(res, 400, { error: "nombre de sesión inválido" });
+    if (req.method === "GET" && accion === "/eventos") {
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "Connection": "keep-alive", "X-Accel-Buffering": "no" });
+      res.write(`event: arbol\ndata: ${JSON.stringify(almacen.leer(sesion))}\n\n`);
+      if (!oyentes.has(sesion)) oyentes.set(sesion, new Set());
+      oyentes.get(sesion).add(res);
+      req.on("close", () => { oyentes.get(sesion).delete(res); });
+      return;
+    }
+    if (req.method === "GET" && !accion) return json(res, 200, almacen.leer(sesion));
+    if (req.method === "POST" && accion === "/escribir") {
+      let cuerpo; try { cuerpo = await leerCuerpo(req); } catch (e) { return json(res, 400, { error: e.message }); }
+      if (typeof cuerpo.ruta !== "string") return json(res, 400, { error: "falta la ruta" });
+      const arbol = poner(almacen.leer(sesion), cuerpo.ruta, cuerpo.datos === undefined ? null : cuerpo.datos, cuerpo.modo !== "fijar");
+      almacen.guardar(sesion, arbol); avisar(sesion, "cambio", { ruta: cuerpo.ruta, datos: cuerpo.datos === undefined ? null : cuerpo.datos, modo: cuerpo.modo === "fijar" ? "fijar" : "fusionar" });
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === "DELETE" && !accion) { almacen.borrar(sesion); avisar(sesion, "arbol", {}); return json(res, 200, { ok: true }); }
+    return json(res, 405, { error: "método no permitido" });
+  }
+  if (url.pathname === "/api/salud") return json(res, 200, { ok: true, almacenamiento: almacen.tipo, sesiones_conectadas: [...oyentes.entries()].map(([s, g]) => ({ sesion: s, conectados: g.size })) });
+  // archivos estáticos, con direcciones limpias (/fichas -> fichas.html)
+  let ruta = decodeURIComponent(url.pathname);
+  const privada = /^\/(servidor|datos|Dockerfile)(\/|$)/.test(ruta) || /^\/\.|\/\./.test(ruta); // el código del servidor, la base y los archivos ocultos no se sirven
+  if (ruta.includes("..") || privada) { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }); return res.end("No encontrado"); }
+  if (ruta === "/") ruta = "/index.html";
+  let archivo = path.join(RAIZ, ruta);
+  if (!path.extname(archivo) && fs.existsSync(archivo + ".html")) archivo += ".html";
+  if (!fs.existsSync(archivo) || fs.statSync(archivo).isDirectory()) { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }); return res.end("No encontrado"); }
+  res.writeHead(200, { "Content-Type": TIPOS[path.extname(archivo)] || "application/octet-stream", "Cache-Control": archivo.endsWith(".html") || archivo.endsWith(".js") ? "no-cache" : "public, max-age=3600", "X-Robots-Tag": "noindex, nofollow" });
+  fs.createReadStream(archivo).pipe(res);
+});
+servidor.listen(PUERTO, () => console.log("Trato Hecho escuchando en el puerto " + PUERTO));

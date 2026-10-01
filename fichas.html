@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es-CR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Trato Hecho · fichas para imprimir</title>
+<style>
+/* Versión imprimible de las fichas privadas. Plan B por si la web no abre en clase:
+   se manda el PDF de cada lado por el chat de su sala. */
+:root { --tinta: #1b2540; --tinta-2: #4b5471; --linea: #c9c3b5; --suave: #f1ede4; --agencia: #2a5aa8; --cliente: #8d3a7c; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; color: var(--tinta); font-size: 10.5pt; line-height: 1.38; background: #fff; }
+.hoja { max-width: 760px; margin: 0 auto; padding: 28px 32px; page-break-after: always; }
+.hoja:last-child { page-break-after: auto; }
+h1 { font-size: 24pt; margin: 0 0 2px; line-height: 1.1; }
+h1 em { font-style: normal; }
+.agencia h1 em { color: var(--agencia); } .cliente h1 em { color: var(--cliente); }
+h2 { font-size: 12pt; margin: 10px 0 3px; border-bottom: 1.5px solid var(--linea); padding-bottom: 2px; }
+p { margin: 0 0 6px; }
+.ojo { font-size: 8.5pt; letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-2); font-weight: 600; }
+.dos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.caja { border: 1px solid var(--linea); border-radius: 6px; padding: 8px 10px; }
+.caja.suave { background: var(--suave); border-color: transparent; }
+ol, ul { margin: 0; padding-left: 1.2em; }
+li { margin-bottom: 3px; }
+.posicion { font-size: 12pt; font-weight: 600; }
+.plan-b { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.plan-b .numero { font-size: 30pt; font-weight: 800; line-height: 1; }
+.plan-b .numero small { display: block; font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; color: var(--tinta-2); }
+table { border-collapse: collapse; width: 100%; font-size: 10pt; }
+th, td { text-align: left; padding: 2px 6px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+th { font-size: 8pt; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-2); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.max { font-weight: 700; }
+tr.tema-inicio td { border-top: 1.5px solid var(--tinta-2); }
+.letra { font-family: "IBM Plex Mono", Consolas, monospace; font-weight: 600; }
+.prep { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.prep div { min-height: 40px; border: 1px solid var(--linea); border-radius: 6px; padding: 4px 8px; break-inside: avoid; }
+.bloque { break-inside: avoid; }
+.pie { font-size: 8.5pt; color: var(--tinta-2); margin-top: 10px; }
+@media print { .hoja { padding: 0; max-width: none; } @page { margin: 14mm 15mm; } }
+</style>
+</head>
+<body>
+<script src="datos.js"></script>
+<script>
+(function () {
+  const D = window.DATOS;
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pedido = new URLSearchParams(location.search).get("lado");
+  const lados = pedido && D.lados[pedido] ? [pedido] : ["agencia", "cliente"];
+  document.body.insertAdjacentHTML("beforeend", lados.map(l => {
+    const L = D.lados[l];
+    const tabla = D.temas.map(t => t.opciones.map((o, k) => {
+      const max = Math.max(...t.opciones.map(x => x[l]));
+      return `<tr class="${k === 0 ? "tema-inicio" : ""}">${k === 0 ? `<td rowspan="${t.opciones.length}"><b>${esc(t.nombre)}</b></td>` : ""}<td><span class="letra">${o.letra}</span> ${esc(o.texto)}</td><td class="num ${o[l] === max ? "max" : ""}">${o[l]}</td></tr>`;
+    }).join("")).join("");
+    return `
+<section class="hoja ${l}">
+  <span class="ojo">${esc(D.nombre)} · ficha privada · no se comparte con el otro lado</span>
+  <h1>Ustedes son <em>${esc(L.nombre)}</em> (${esc(L.rol).toLowerCase()})</h1>
+  <p>${esc(D.contexto.parrafos[0])} ${esc(D.contexto.parrafos[1])}</p>
+  <div class="dos">
+    <div class="caja"><span class="ojo">Quiénes son ustedes</span><p>${esc(L.quienes)}</p></div>
+    <div class="caja"><span class="ojo">Su posición inicial (lo que dicen al sentarse)</span><p class="posicion">${esc(L.posicion)}</p></div>
+  </div>
+  <h2>Sus intereses reales, en orden</h2>
+  <ol>${L.intereses.map(i => `<li><b>${esc(i.titulo)}.</b> ${esc(i.texto)}</li>`).join("")}</ol>
+  <div class="dos" style="margin-top:10px">
+    <div class="caja suave plan-b"><div class="numero">${L.planB.puntos}<small>Plan B</small></div><div><p>${esc(L.planB.texto)}</p><p><b>${esc(L.planB.aviso)}</b></p></div></div>
+    <div class="caja"><span class="ojo">Consejos</span><ul>${L.consejos.map(c => `<li>${esc(c)}</li>`).join("")}</ul></div>
+  </div>
+  <div class="bloque"><h2>Su tabla de puntos (máximo 100; en negrita, la mejor opción de cada tema)</h2>
+  <table><thead><tr><th>Tema</th><th>Opción</th><th class="num">Puntos</th></tr></thead><tbody>${tabla}</tbody></table></div>
+  <h2>Reglas</h2>
+  <ol>${D.contexto.reglas.map(r => `<li>${esc(r)}</li>`).join("")}</ol>
+  <h2>Hoja de preparación</h2>
+  <div class="prep">${L.preparacion.map(p => `<div><span class="ojo">${esc(p.pregunta)}</span></div>`).join("")}</div>
+  <p class="pie">Para cerrar: las cinco letras del trato en orden (por ejemplo B-E-D-C-D), o «sin acuerdo» con la última propuesta que hubo y quién la rechazó. Índice de la sala = puntos de los dos − la mitad de su diferencia.</p>
+</section>`;
+  }).join(""));
+})();
+</script>
+</body>
+</html>
