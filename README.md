@@ -3,12 +3,15 @@
 Simulador de negociación para la exposición de la CEP **Negociación** del Grupo 4
 (Desarrollo de Emprendedores, TEC, II semestre 2026). Es una web estática: se
 despliega en cualquier hosting de archivos (Vercel, GitHub Pages, Netlify) y no
-se cae por carga. El tablero en vivo, opcional, usa Firebase sin servidor propio.
+se cae por carga. El tablero en vivo lo da un servidor propio sin dependencias
+(`servidor/`), con la base dentro del contenedor.
 
-**En producción:** <https://trato-hecho-nine.vercel.app> (Vercel, proyecto `trato-hecho`, desplegado desde
-la carpeta `tareas/exposicion-negociacion/trato-hecho` del repositorio del hub;
-la carpeta raíz está fijada en la configuración del proyecto: sin ella, un
-despliegue publica el panel del hub en vez de la web).
+**En producción:** <https://tratohecho.siriusx.net> (Coolify, desde el repo
+público [`ulises-mz/trato-hecho`](https://github.com/ulises-mz/trato-hecho),
+con tablero en vivo). **Copia estática de respaldo:**
+<https://trato-hecho-nine.vercel.app> (Vercel, desde la carpeta
+`tareas/exposicion-negociacion/trato-hecho` del hub, sin tablero en vivo; la
+carpeta raíz está fijada en la configuración del proyecto).
 
 ## La actividad en una frase
 
