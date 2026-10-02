@@ -186,7 +186,12 @@
     const prep = ["espera", "cuenta", "consigna", "preparacion"].includes(faseActual());
     return prep ? nombreSalaPrep(estado.sala, estado.lado) : nombreSala(estado.sala);
   }
-  function zoomChipHTML() { const s = salaZoomActual(); return s ? `<span class="cinta zoom" title="Sala de ${esc(videollamada())} en la que deben estar ahora">${Iconos.svg("users")} ${esc(videollamada())}: ${esc(s)}</span>` : ""; }
+  function zoomChipHTML() {
+    const s = salaZoomActual(); if (!s) return "";
+    const prep = ["espera", "cuenta", "consigna", "preparacion"].includes(faseActual());
+    const luego = prep && seMueve(estado.lado) ? ` · a negociar: ${esc(nombreSala(estado.sala))}` : "";
+    return `<span class="cinta zoom" title="Sala de ${esc(videollamada())} en la que deben estar ahora">${Iconos.svg("users")} ${esc(videollamada())}: ${esc(s)}${luego}</span>`;
+  }
   function pintarZoomChip() { document.querySelectorAll(".cinta.zoom").forEach(z => { const h = zoomChipHTML(); if (h && z.outerHTML !== h) z.outerHTML = h; }); }
   /* Cómo se crean las salas de la videollamada y quién va a cuál. Lo ven Admin, Staff y Guion: el staff
      ayuda a crearlas al inicio de la clase. */
@@ -1770,7 +1775,13 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
     const { filas, errores } = parsearCodigos(estado.chat);
     const h = tableroHTML(ordenar(filas), errores); if (zona.innerHTML !== h) zona.innerHTML = h;
     const r = document.getElementById("resumen-vivo"); if (r) { const rh = resumenVivoHTML(); if (r.innerHTML !== rh) r.innerHTML = rh; }
-    if (enVivo() && tieneClave() && estado.chat !== codigosPublicados) { codigosPublicados = estado.chat; Sync.fijar("config/codigos", estado.chat || ""); }
+    publicarCodigos(estado.chat);
+  }
+  /* El ranking que ven los equipos (su puesto) sale de config/codigos: lo publica Resultados al calcular y
+     también «Revelar» desde Admin, para que no dependa de tener abierta la pestaña Resultados. */
+  function publicarCodigos(codigos) {
+    if (!(enVivo() && tieneClave()) || codigos === codigosPublicados) return;
+    codigosPublicados = codigos; Sync.fijar("config/codigos", codigos || "");
   }
   function agregarCodigo(codigo) {
     estado.chat = (estado.chat ? estado.chat.trimEnd() + "\n" : "") + codigo; guardar("chat", estado.chat);
@@ -1885,7 +1896,7 @@ ${vivoSi ? `<section class="seccion"><div class="panel ${manual ? "suave" : "men
         if (enVivo() && !estado.manualResultados) { estado.manualResultados = true; guardar("manualResultados", true); }
         agregarCodigo(codigoDe(sala, cierre)); break;
       }
-      case "btn-revelar": { const nuevo = !revelado(); estado.revelar = nuevo; guardar("revelar", nuevo); if (enVivo()) Sync.fijar("config/revelar", { on: nuevo, ts: Date.now() }); render(); if (nuevo) { const r = document.getElementById("revelacion"); if (r) r.scrollIntoView(); } break; }
+      case "btn-revelar": { const nuevo = !revelado(); estado.revelar = nuevo; guardar("revelar", nuevo); if (enVivo()) { if (nuevo && !estado.manualResultados) publicarCodigos(codigosEnVivo(tiempoAgotado()).codigos.join("\n")); Sync.fijar("config/revelar", { on: nuevo, ts: Date.now() }); } render(); if (nuevo) { const r = document.getElementById("revelacion"); if (r) r.scrollIntoView(); } break; }
       case "btn-probar": {
         if (!enVivo()) { avisar("No hay tablero en vivo configurado."); return; }
         const t0 = Date.now(); let listo = false;
